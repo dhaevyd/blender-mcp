@@ -1,0 +1,345 @@
+/* Replace older setup-panel side-tab accents with a quiet surface edge. */
+.setup-panel,
+.setup-rail {
+  border-left: 1px solid var(--studio-border, #303839);
+}
+
+.studio-shell {
+  --shell-bg: var(--studio-rail);
+  --shell-raised: var(--studio-surface-raised);
+  --shell-surface: var(--studio-surface);
+  --shell-border-strong: var(--studio-border);
+  --shell-border-soft: var(--studio-border);
+  --shell-ink: var(--studio-text);
+  --shell-muted: var(--studio-muted);
+  background: var(--studio-canvas, #17191c);
+  color: var(--studio-text, #edf0f4);
+}
+
+.studio-sidebar {
+  background: var(--studio-rail, #1b1e23);
+  border-color: var(--studio-border, #303839);
+}
+
+.studio-shell .brand-mark {
+  color: var(--studio-accent);
+  background: var(--studio-accent-muted);
+  border-color: var(--studio-border);
+}
+
+.studio-shell .workspace-label span {
+  color: var(--studio-text-muted);
+  background: var(--studio-surface);
+  border-color: var(--studio-border);
+  opacity: 1;
+}
+.studio-shell .workspace-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.studio-shell .workspace-label .workspace-local {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 22px;
+  padding: 0 8px;
+  border: 1px solid var(--studio-border);
+  border-radius: 4px;
+  line-height: 1;
+}
+.studio-shell .workspace-label .workspace-name {
+  background: none;
+  border: 0;
+  padding: 0;
+}
+
+.studio-shell .studio-brand small,
+.studio-shell .workspace-label {
+  color: var(--studio-muted);
+  font: 500 11px / 1.4 var(--font-body);
+  letter-spacing: 0.08em;
+}
+
+.studio-shell .workspace-label span {
+  font: 600 11px / 1.2 var(--font-body);
+  letter-spacing: 0.02em;
+}
+
+.studio-shell .sidebar-connection {
+  color: var(--studio-text);
+  background: var(--studio-surface);
+  border-color: var(--studio-border);
+}
+
+.studio-shell .sidebar-connection small {
+  color: var(--studio-muted);
+  font: 400 11px / 1.3 var(--font-body);
+}
+.studio-shell .sidebar-connection-link {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  margin: 14px 0 2px;
+  padding: 9px 10px;
+  border: 1px solid var(--studio-border);
+  border-radius: 6px;
+  text-align: left;
+  cursor: pointer;
+}
+.studio-shell .sidebar-connection-link:hover {
+  border-color: var(--studio-accent);
+  background: var(--studio-surface-raised);
+}
+.studio-shell .sidebar-connection-link.is-online .connection-indicator {
+  background: var(--studio-status-good, #25845a);
+}
+.studio-shell .sidebar-connection-link.is-warning .connection-indicator {
+  background: var(--studio-status-warning, #a96612);
+}
+.studio-shell .sidebar-connection-link.is-offline .connection-indicator {
+  background: var(--studio-status-danger, #b33c35);
+}
+.studio-shell .sidebar-connection-copy {
+  min-width: 0;
+}
+.studio-shell .sidebar-connection-copy strong {
+  display: block;
+  line-height: 1.35;
+}
+.studio-shell .sidebar-connection-copy small {
+  display: block;
+  margin-top: 3px;
+}
+
+.studio-shell .sidebar-help {
+  color: var(--studio-muted);
+}
+
+.studio-brand,
+.studio-nav-item,
+.sidebar-help,
+.icon-button,
+.profile-chip {
+  color: var(--studio-text, #e8eeec);
+}
+
+.studio-shell .studio-nav {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
+  width: 100%;
+  gap: 5px;
+}
+.studio-nav-item {
+  box-sizing: border-box;
+  min-width: 0;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  min-height: 42px;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease,
+    color 120ms ease;
+}
+
+.studio-nav-item:hover {
+  background: var(--studio-surface-raised, #202728);
+}
+.studio-nav-item.active {
+  background: var(--studio-accent-muted, #263b38);
+  border-color: var(--studio-accent, #76c7ad);
+  color: var(--studio-text, #e8eeec);
+}
+
+.studio-nav-item:focus-visible,
+.studio-shell button:focus-visible,
+.studio-shell a:focus-visible {
+  outline: 2px solid var(--studio-focus, #a6e8d1);
+  outline-offset: 2px;
+}
+
+.studio-topbar {
+  min-height: 58px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0 24px;
+  border-bottom: 1px solid var(--studio-border, #303839);
+  background: var(--studio-surface, #191f20);
+}
+
+.studio-shell .topbar-actions .icon-button,
+.studio-shell .topbar-actions .profile-chip,
+.studio-shell .topbar-actions > button[aria-label^="Switch to"] {
+  color: var(--studio-text);
+  background: var(--studio-surface-raised);
+  border-color: var(--studio-border);
+}
+
+/* The scoped topbar rule above outranks the base :hover pair, so the hover
+   feedback has to be declared at the same specificity. */
+.studio-shell .topbar-actions .icon-button:hover,
+.studio-shell .topbar-actions .profile-chip:hover,
+.studio-shell .topbar-actions > button[aria-label^="Switch to"]:hover {
+  color: var(--studio-accent);
+  background: color-mix(in srgb, var(--studio-accent) 12%, var(--studio-surface-raised));
+  border-color: var(--studio-accent);
+}
+
+.studio-shell .topbar-actions .icon-button:active,
+.studio-shell .topbar-actions .profile-chip:active,
+.studio-shell .topbar-actions > button[aria-label^="Switch to"]:active {
+  background: color-mix(in srgb, var(--studio-accent) 20%, var(--studio-surface-raised));
+}
+
+/* Topbar tooltips: an immediate, theme-aware bubble instead of the browser's
+   slow native title, drawn below the control and anchored to its right edge. */
+.studio-shell .studio-topbar {
+  position: relative;
+  z-index: 20;
+}
+.studio-shell .topbar-actions {
+  position: relative;
+  z-index: 30;
+  align-items: center;
+}
+.studio-shell .topbar-actions [data-tooltip] {
+  position: relative;
+}
+.studio-shell .topbar-actions [data-tooltip]::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  z-index: 40;
+  padding: 6px 10px;
+  border-radius: 5px;
+  background: var(--studio-text);
+  color: var(--studio-bg);
+  font: 500 12px / 1.2 var(--font-body, var(--studio-font-sans));
+  letter-spacing: 0;
+  white-space: nowrap;
+  box-shadow: 0 10px 26px rgb(0 0 0 / 0.28);
+  opacity: 0;
+  transform: translateY(-4px);
+  pointer-events: none;
+  transition:
+    opacity 90ms ease,
+    transform 90ms ease;
+}
+.studio-shell .topbar-actions [data-tooltip]:is(:hover, :focus-visible)::after {
+  opacity: 1;
+  transform: translateY(0);
+  transition-delay: 80ms;
+}
+
+@media (hover: none) {
+  .studio-shell .topbar-actions [data-tooltip]::after {
+    display: none;
+  }
+}
+
+.studio-shell .topbar-actions > button[aria-label^="Switch to"] {
+  border-radius: 6px;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  cursor: pointer;
+}
+
+.studio-page-context,
+.studio-context-coordinator,
+.studio-topbar .topbar-actions {
+  display: flex;
+  align-items: center;
+}
+.studio-page-context {
+  gap: 12px;
+  min-width: 0;
+}
+.studio-page-context > strong {
+  font-size: 14px;
+  font-weight: 600;
+}
+.studio-context-mark {
+  display: inline-flex;
+  color: var(--studio-accent, #76c7ad);
+}
+.studio-context-coordinator {
+  gap: 7px;
+  margin-left: 8px;
+  padding-left: 16px;
+  border-left: 1px solid var(--studio-border, #303839);
+  color: var(--studio-muted, #9ba9a6);
+  font-size: 12px;
+}
+.studio-topbar .topbar-actions {
+  gap: 10px;
+}
+.studio-topbar .topbar-updated {
+  color: var(--studio-muted, #9ba9a6);
+  font-size: 12px;
+}
+
+@media (max-width: 720px) {
+  .studio-topbar {
+    padding: 0 14px;
+    gap: 8px;
+  }
+  .studio-context-coordinator,
+  .studio-topbar .topbar-updated {
+    display: none;
+  }
+}
+
+@media (max-width: 900px) {
+  .studio-shell .sidebar-connection-link {
+    width: 42px;
+    height: 42px;
+    justify-content: center;
+    margin: 12px auto 2px;
+    padding: 0;
+  }
+
+  .studio-shell .sidebar-connection-copy {
+    display: none;
+  }
+}
+
+/* Between the wide layout and the phone bar the rail is still 190px, so the
+   status keeps its label instead of collapsing to an unlabeled dot. */
+@media (max-width: 900px) and (min-width: 601px) {
+  .studio-shell .sidebar-connection-link {
+    width: auto;
+    height: auto;
+    justify-content: flex-start;
+    gap: 9px;
+    margin: 12px 0 2px;
+    padding: 9px 10px;
+  }
+
+  .studio-shell .sidebar-connection-copy {
+    display: block;
+  }
+}
+
+/* The phone bar is navigation only: the workspace label and status belong to
+   the wide rail, and the shell rule above would otherwise keep them visible. */
+@media (max-width: 600px) {
+  .studio-shell .workspace-label,
+  .studio-shell .sidebar-bottom {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .studio-nav-item {
+    transition: none;
+  }
+}

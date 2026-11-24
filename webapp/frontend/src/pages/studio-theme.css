@@ -1,0 +1,66 @@
+/* Shared Studio tokens. Near-black dark mode is the default; light remains one toggle away. */
+:root {
+  color-scheme: dark;
+  --studio-bg: #08090c;
+  --studio-canvas: #08090c;
+  --studio-surface: #101216;
+  --studio-rail: #050609;
+  --studio-raised: #171a20;
+  --studio-surface-raised: #171a20;
+  --studio-surface-muted: #11151c;
+  --studio-border: #252a34;
+  --studio-text: #f4f4f4;
+  --studio-muted: #a1a1a3;
+  --studio-text-muted: #a1a1a3;
+  --studio-accent: #2f66c2;
+  --studio-accent-muted: #10234a;
+  --studio-accent-contrast: #ffffff;
+  --studio-focus: #78b2f0;
+  --studio-status-good: #64c58e;
+  --studio-status-warning: #e6b85c;
+  --studio-danger: #ee8989;
+  --studio-shadow: 0 1px 2px rgb(0 0 0 / 24%), 0 6px 20px rgb(0 0 0 / 12%);
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+  --studio-bg: #fffdf7;
+  --studio-canvas: #fffdf7;
+  --studio-surface: #fffdf7;
+  --studio-rail: #fffdf7;
+  --studio-raised: #f4f1e9;
+  --studio-surface-raised: #f4f1e9;
+  --studio-surface-muted: #fbf9f3;
+  --studio-border: #e5e0d5;
+  --studio-text: #202020;
+  --studio-muted: #605d55;
+  --studio-text-muted: #605d55;
+  --studio-accent: #2f66c2;
+  --studio-accent-muted: #e8f0fc;
+  --studio-accent-contrast: #ffffff;
+  --studio-focus: #2457a6;
+  --studio-status-good: #217a50;
+  --studio-status-warning: #946000;
+  --studio-danger: #b42318;
+  --studio-shadow: 0 1px 2px rgb(18 32 54 / 5%), 0 4px 12px rgb(18 32 54 / 3%);
+}
+
+.studio-shell {
+  --bg: var(--studio-bg);
+  --foreground: var(--studio-text);
+  --card: var(--studio-surface);
+  --muted: var(--studio-surface-raised);
+  --muted-fg: var(--studio-text-muted);
+  --accent: var(--studio-accent-muted);
+  --border: var(--studio-border);
+  --input: var(--studio-surface);
+  --primary: var(--studio-accent);
+  --primary-fg: var(--studio-accent-contrast);
+  --panel: var(--studio-surface);
+  --panel2: var(--studio-surface-raised);
+  --line: var(--studio-border);
+  --soft: var(--studio-text);
+  --white: var(--studio-text);
+  --lime: var(--studio-accent);
+  --cyan: var(--studio-accent);
+}

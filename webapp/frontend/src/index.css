@@ -1,0 +1,115 @@
+@import "@fontsource/archivo/400.css";
+@import "@fontsource/archivo/500.css";
+@import "@fontsource/archivo/600.css";
+@import "@fontsource/archivo/700.css";
+@import "@fontsource/archivo/800.css";
+@import "@fontsource/inter/400.css";
+@import "@fontsource/inter/500.css";
+@import "@fontsource/inter/600.css";
+@import "@fontsource/inter/700.css";
+@import "@fontsource/manrope/400.css";
+@import "@fontsource/manrope/500.css";
+@import "@fontsource/manrope/600.css";
+@import "@fontsource/manrope/700.css";
+@import "@fontsource/jetbrains-mono/400.css";
+@import "@fontsource/jetbrains-mono/500.css";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Refined dark instrument — warm, editorial, single restrained amber accent. */
+    --background: 30 8% 5%;
+    --foreground: 40 20% 92%;
+
+    --card: 30 8% 7%;
+    --card-foreground: 40 20% 92%;
+
+    --popover: 30 8% 7%;
+    --popover-foreground: 40 20% 92%;
+
+    --primary: 36 70% 52%;
+    --primary-foreground: 33 45% 8%;
+
+    --secondary: 30 7% 12%;
+    --secondary-foreground: 40 20% 92%;
+
+    --muted: 30 7% 12%;
+    --muted-foreground: 36 10% 56%;
+
+    --accent: 35 12% 15%;
+    --accent-foreground: 40 20% 92%;
+
+    --destructive: 0 42% 35%;
+    --destructive-foreground: 40 20% 92%;
+
+    --border: 30 6% 15%;
+    --input: 30 6% 17%;
+    --ring: 36 70% 52%;
+
+    --radius: 0.5rem;
+
+    /* Archivo leads — geometric sans matching the Nerve dashboard aesthetic. */
+    --font-body:
+      "Archivo", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "Manrope", ui-sans-serif, system-ui,
+      sans-serif;
+    --font-display:
+      "Archivo", -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Inter", "Manrope", ui-sans-serif,
+      system-ui, sans-serif;
+    --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+    color-scheme: dark;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: var(--font-body);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    color-scheme: dark;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: var(--font-display);
+  }
+
+  select,
+  summary,
+  label[for] {
+    cursor: pointer;
+  }
+}
+
+select,
+input,
+textarea {
+  color-scheme: dark;
+}
+
+code,
+pre {
+  font-family: var(--font-mono);
+}
+
+/* tailwind.config.js still lists the legacy faces for the font-* utilities;
+   keep those utilities on the same system-first stack as the base layer. */
+.font-sans {
+  font-family: var(--font-body);
+}
+
+.font-display {
+  font-family: var(--font-display);
+}

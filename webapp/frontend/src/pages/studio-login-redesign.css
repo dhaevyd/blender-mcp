@@ -1,0 +1,317 @@
+/*
+ * Studio login — token-driven restyle that matches the Overview card language.
+ * Near-black canvas, one hairline card, brand lockup, 30px heading.
+ * Every colour comes from studio-theme.css so light mode flips for free.
+ */
+
+.studio-login {
+  position: relative;
+  isolation: isolate;
+}
+
+/* Soft glow behind the card — the only background depth on this screen. */
+.studio-login::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: radial-gradient(
+    ellipse 62% 48% at 50% 40%,
+    color-mix(in srgb, var(--studio-accent) 16%, transparent),
+    transparent 72%
+  );
+}
+
+:root[data-theme="light"] .studio-login::before {
+  background: radial-gradient(
+    ellipse 62% 48% at 50% 40%,
+    color-mix(in srgb, var(--studio-accent) 7%, transparent),
+    transparent 72%
+  );
+}
+
+/* Theme toggle, parked in the top corner like the shell header control. */
+.studio-login .login-theme-control {
+  position: fixed;
+  top: 20px;
+  right: 22px;
+  z-index: 2;
+}
+
+.studio-login .login-theme-control button {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--studio-border);
+  border-radius: 9px;
+  background: var(--studio-surface);
+  color: var(--studio-text-muted);
+  cursor: pointer;
+  transition:
+    color 120ms ease,
+    border-color 120ms ease,
+    background-color 120ms ease;
+}
+
+.studio-login .login-theme-control button:hover {
+  color: var(--studio-text);
+  border-color: var(--studio-focus);
+}
+
+.studio-login .login-theme-control button:focus-visible {
+  outline: 2px solid var(--studio-focus);
+  outline-offset: 2px;
+}
+
+/* --------------------------------------------------------------------------
+   Card
+   -------------------------------------------------------------------------- */
+
+.studio-login .login-card {
+  position: relative;
+  width: 100%;
+  max-width: 420px;
+  padding: 32px;
+  border: 1px solid var(--studio-border);
+  border-radius: 16px;
+  background: var(--studio-surface);
+  box-shadow: var(--studio-shadow);
+}
+
+/* --------------------------------------------------------------------------
+   Brand lockup — same Box mark + wordmark as the rail
+   -------------------------------------------------------------------------- */
+
+.studio-login .login-brand {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  margin-bottom: 28px;
+}
+
+.studio-login .login-brand-mark {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  flex: none;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: var(--studio-accent);
+  color: var(--studio-accent-contrast);
+}
+
+.studio-login .login-brand-copy {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.studio-login .login-brand-copy strong {
+  color: var(--studio-text);
+  font: 700 12px / 1.1 var(--font-body);
+  letter-spacing: 0.08em;
+}
+
+.studio-login .login-brand-copy small {
+  margin-top: 3px;
+  color: var(--studio-text-muted);
+  font: 500 9px / 1.2 var(--font-body);
+  letter-spacing: 0.18em;
+}
+
+/* --------------------------------------------------------------------------
+   Heading
+   -------------------------------------------------------------------------- */
+
+.studio-login .login-head {
+  margin-bottom: 26px;
+}
+
+.studio-login .login-head h1 {
+  color: var(--studio-text);
+  font: 600 clamp(26px, 6vw, 31px) / 1.15 var(--font-display);
+  letter-spacing: -0.03em;
+}
+
+.studio-login .login-subtitle {
+  margin-top: 10px;
+  color: var(--studio-text-muted);
+  font: 400 13px / 1.6 var(--font-body);
+}
+
+/* --------------------------------------------------------------------------
+   Form
+   -------------------------------------------------------------------------- */
+
+.studio-login .login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.studio-login .login-field {
+  gap: 7px;
+}
+
+.studio-login .login-field label {
+  display: block;
+  color: var(--studio-text-muted);
+  font: 600 10px / 1.2 var(--font-body);
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.studio-login .login-field .page-input {
+  height: 36px;
+  border-radius: 9px;
+  background: var(--studio-surface-muted);
+}
+
+.studio-login .login-field .page-input::placeholder {
+  color: color-mix(in srgb, var(--studio-text-muted) 78%, transparent);
+}
+
+.studio-login .login-field .page-input:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--studio-border) 55%, var(--studio-text-muted));
+}
+
+.studio-login .login-field .page-input:focus-visible {
+  outline: 2px solid var(--studio-focus);
+  outline-offset: 1px;
+  border-color: transparent;
+}
+
+.studio-login .login-field .page-input:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+/* Password reveal button sits inside the 36px input */
+.studio-login .login-password-wrap {
+  position: relative;
+}
+
+.studio-login .login-password-wrap .page-input {
+  padding-right: 42px;
+}
+
+.studio-login .login-reveal {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--studio-text-muted);
+  cursor: pointer;
+}
+
+.studio-login .login-reveal:hover:not(:disabled) {
+  color: var(--studio-text);
+  background: var(--studio-surface-raised);
+}
+
+.studio-login .login-reveal:disabled {
+  cursor: wait;
+  opacity: 0.5;
+}
+
+/* Error reuses the shared .page-note.is-bad surface */
+.studio-login .login-error {
+  outline: none;
+  overflow-wrap: anywhere;
+}
+
+.studio-login .login-error:focus-visible {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--studio-focus) 55%, transparent);
+}
+
+/* Full-width primary action */
+.studio-login .login-submit {
+  height: 40px;
+  margin-top: 2px;
+  border-radius: 9px;
+  font: 600 13px / 1 var(--font-body);
+  gap: 8px;
+}
+
+.studio-login .login-submit:disabled {
+  opacity: 0.7;
+  cursor: wait;
+}
+
+.studio-login .login-spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid color-mix(in srgb, var(--studio-accent-contrast) 42%, transparent);
+  border-top-color: var(--studio-accent-contrast);
+  border-radius: 50%;
+  animation: login-spin 0.7s linear infinite;
+}
+
+/* Security note — footer line of the card */
+.studio-login .login-form-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 26px;
+  padding-top: 18px;
+  border-top: 1px solid var(--studio-border);
+  color: var(--studio-text-muted);
+  font: 400 12px / 1.55 var(--font-body);
+}
+
+.studio-login .login-form-note svg {
+  flex: none;
+  margin-top: 1px;
+  color: var(--studio-text-muted);
+}
+
+/* --------------------------------------------------------------------------
+   Responsive
+   -------------------------------------------------------------------------- */
+
+@media (max-width: 600px) {
+  .studio-login {
+    align-content: center;
+    padding: 76px 20px 32px;
+  }
+
+  .studio-login .login-card {
+    max-width: none;
+    padding: 26px 22px;
+    border-radius: 14px;
+  }
+
+  .studio-login .login-brand {
+    margin-bottom: 24px;
+  }
+
+  .studio-login .login-form-note {
+    margin-top: 22px;
+    padding-top: 16px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .studio-login *,
+  .studio-login *::before,
+  .studio-login *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+
+  .studio-login .login-spinner {
+    animation: none;
+  }
+}

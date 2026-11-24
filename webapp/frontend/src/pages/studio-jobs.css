@@ -1,0 +1,437 @@
+/*
+ * Jobs screen — built on the shared page layer (studio-pages.css) and the
+ * Overview card shell (studio-cards.css). Everything here is scoped to
+ * .studio-jobs so nothing leaks into the other Studio screens, and every
+ * colour comes from a --studio-* / --nerve-* token so light mode flips.
+ *
+ * The legacy .panel / bare-element rules this file used to carry are gone;
+ * the only overrides kept are the ones that undo studio-dashboard.css
+ * element-level defaults (buttons, inputs, h1/h2 margins) inside our scope.
+ */
+
+/* --------------------------------------------------------------------------
+   Page scope
+   -------------------------------------------------------------------------- */
+
+.studio-jobs {
+  min-width: 0;
+}
+
+/* Page-head h1 already comes from .page-head; the old rule that forced 28px
+   here would fight it, so only keep the safety margin shim. */
+.studio-jobs > .page-head {
+  margin-bottom: 2px;
+}
+
+/* .page-meter ships as a flex/inline agnostic class; used on <span> it would
+   stay inline and collapse to zero height, so force a block box here. */
+.studio-jobs .page-meter {
+  display: block;
+  width: 100%;
+  background: color-mix(in srgb, var(--studio-border) 80%, var(--studio-surface));
+}
+
+.studio-jobs .page-meter > span {
+  display: block;
+}
+
+/* --------------------------------------------------------------------------
+   Stat tiles — tone dots
+   -------------------------------------------------------------------------- */
+
+.studio-jobs .page-stat-label .studio-jobs-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--studio-muted);
+  flex: none;
+}
+
+.studio-jobs .page-stat-label .studio-jobs-dot.is-live {
+  background: var(--nerve-teal);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--nerve-teal) 16%, transparent);
+}
+
+.studio-jobs .page-stat-label .studio-jobs-dot.is-good {
+  background: var(--nerve-green);
+}
+
+.studio-jobs .page-stat-label .studio-jobs-dot.is-bad {
+  background: var(--nerve-coral);
+}
+
+.studio-jobs .page-stat-foot {
+  overflow-wrap: anywhere;
+}
+
+/* --------------------------------------------------------------------------
+   Cards — neutralise the dashboard's bare-element styling inside them
+   -------------------------------------------------------------------------- */
+
+.studio-jobs .nr-card {
+  overflow-wrap: anywhere;
+}
+
+.studio-jobs .nr-card-head h2 {
+  margin: 0;
+  color: var(--studio-text);
+  font: 600 14.5px / 1.25 var(--font-display);
+  letter-spacing: -0.01em;
+}
+
+.studio-jobs .nr-card-head p {
+  margin: 4px 0 0;
+  color: var(--studio-muted);
+  font: 400 12px / 1.4 var(--font-body);
+}
+
+.studio-jobs .nr-card button {
+  font-family: var(--font-body);
+}
+
+/* --------------------------------------------------------------------------
+   Recent jobs table
+   -------------------------------------------------------------------------- */
+
+.studio-jobs .studio-jobs-table {
+  margin-inline: -6px;
+}
+
+.studio-jobs .studio-job-row {
+  grid-template-columns: minmax(0, 1fr) 86px 76px 132px 64px;
+  gap: 12px;
+  width: 100%;
+  padding: 11px 6px;
+  border: 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--studio-border) 55%, transparent);
+  border-radius: 0;
+  background: transparent;
+  color: var(--studio-text);
+  font: 500 12.5px / 1.35 var(--font-body);
+  text-align: left;
+  align-items: center;
+}
+
+.studio-jobs button.studio-job-row {
+  cursor: pointer;
+  transition: background-color 120ms ease;
+}
+
+.studio-jobs button.studio-job-row:hover {
+  background: color-mix(in srgb, var(--studio-surface-raised) 60%, transparent);
+}
+
+.studio-jobs button.studio-job-row:focus-visible {
+  outline: 2px solid var(--studio-focus);
+  outline-offset: -2px;
+  border-radius: 6px;
+}
+
+.studio-jobs button.studio-job-row.is-selected {
+  background: color-mix(in srgb, var(--studio-accent) 11%, transparent);
+  box-shadow: inset 2px 0 0 var(--studio-accent);
+}
+
+.studio-jobs .studio-job-row.page-table-head {
+  color: var(--studio-muted);
+  font: 600 9.5px / 1 var(--font-body);
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  background: transparent;
+}
+
+.studio-jobs .studio-job-path {
+  font-weight: 600;
+  color: var(--studio-text);
+}
+
+.studio-jobs .studio-job-frames,
+.studio-jobs .studio-job-id {
+  font-variant-numeric: tabular-nums;
+  font-size: 11.5px;
+  text-align: right;
+}
+
+.studio-jobs .studio-job-id {
+  font-family: var(--font-mono, monospace);
+  letter-spacing: 0.02em;
+}
+
+.studio-jobs .studio-job-meter {
+  display: block;
+  min-width: 0;
+}
+
+.studio-jobs .studio-jobs-placeholder {
+  padding: 6px 2px 10px;
+}
+
+/* --------------------------------------------------------------------------
+   Submit form
+   -------------------------------------------------------------------------- */
+
+.studio-jobs .studio-job-submit {
+  gap: 0;
+}
+
+.studio-jobs .studio-job-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.studio-jobs .studio-job-frame-range {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.studio-jobs .studio-job-path-input {
+  font-family: var(--font-mono, monospace);
+  font-size: 12.5px;
+}
+
+/* The dashboard sets `input { width: 100% }`; keep fields full-width but let
+   the page layer own height, radius and colours. */
+.studio-jobs .page-field > .page-input {
+  width: 100%;
+  min-width: 0;
+  max-width: none;
+}
+
+.studio-jobs .page-form-actions {
+  margin-top: 16px;
+  align-items: center;
+}
+
+.studio-jobs .page-form-actions .page-muted {
+  flex: 1 1 140px;
+  min-width: 0;
+}
+
+/* --------------------------------------------------------------------------
+   Alerts
+   -------------------------------------------------------------------------- */
+
+.studio-jobs .studio-jobs-alerts .page-list-row {
+  align-items: flex-start;
+}
+
+.studio-jobs .studio-jobs-alert-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--nerve-yellow) 12%, transparent);
+  color: var(--nerve-yellow);
+}
+
+.studio-jobs .studio-jobs-alert-text {
+  color: var(--studio-text);
+  font: 500 12px / 1.45 var(--font-body);
+  min-width: 0;
+}
+
+/* --------------------------------------------------------------------------
+   Job detail
+   -------------------------------------------------------------------------- */
+
+.studio-jobs .studio-jobs-detail-title {
+  overflow-wrap: anywhere;
+}
+
+.studio-jobs .studio-jobs-detail-progress {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.studio-jobs .studio-jobs-detail-progress .page-meter {
+  flex: 1;
+  min-width: 0;
+}
+
+.studio-jobs .studio-jobs-detail-progress .page-muted {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+  font-size: 11px;
+}
+
+.studio-jobs .studio-jobs-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 12px;
+}
+
+.studio-jobs .studio-jobs-actions:last-child {
+  margin-bottom: 0;
+}
+
+.studio-jobs .studio-jobs-table-caption {
+  margin: 12px 0 4px;
+}
+
+.studio-jobs .studio-frame-row {
+  grid-template-columns: 40px 96px minmax(0, 1fr) auto;
+  gap: 10px;
+  padding: 9px 4px;
+}
+
+.studio-jobs .studio-frame-row.page-table-head {
+  padding-top: 6px;
+}
+
+.studio-jobs .studio-frame-worker {
+  color: var(--studio-muted);
+  font: 500 11.5px / 1.4 var(--font-body);
+  overflow-wrap: anywhere;
+}
+
+.studio-jobs .studio-frame-out {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  color: var(--studio-muted);
+  font: 500 11px / 1.35 var(--font-body);
+  text-align: right;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.studio-jobs .studio-jobs-pager {
+  margin-top: 12px;
+  justify-content: flex-end;
+}
+
+/* --------------------------------------------------------------------------
+   Audit log (admin)
+   -------------------------------------------------------------------------- */
+
+.studio-jobs .studio-jobs-audit {
+  padding: 0;
+  overflow: hidden;
+}
+
+.studio-jobs .studio-jobs-audit-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 16px 22px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.studio-jobs .studio-jobs-audit-summary::-webkit-details-marker {
+  display: none;
+}
+
+.studio-jobs .studio-jobs-audit-summary::marker {
+  content: "";
+}
+
+.studio-jobs .studio-jobs-audit-summary:focus-visible {
+  outline: 2px solid var(--studio-focus);
+  outline-offset: -2px;
+}
+
+.studio-jobs .studio-jobs-audit[open] .studio-jobs-audit-summary {
+  border-bottom: 1px solid var(--studio-border);
+}
+
+.studio-jobs .studio-jobs-audit > .page-note,
+.studio-jobs .studio-jobs-audit-list {
+  margin: 14px 22px 18px;
+}
+
+.studio-jobs .studio-jobs-audit-row {
+  color: var(--studio-muted);
+  font: 500 11px / 1.5 var(--font-body);
+  overflow-wrap: anywhere;
+}
+
+/* --------------------------------------------------------------------------
+   Small screens — the shared layer collapses rows to two columns; give the
+   job row a deliberate layout instead of letting cells squeeze.
+   -------------------------------------------------------------------------- */
+
+/* --------------------------------------------------------------------------
+   Light theme contrast
+   The shared .page-chip tones are literal hues tuned for the near-black
+   canvas; on the cream canvas their 6-9px letters drop under 2:1. Darken the
+   label inside this screen only, keeping the tinted fill from the shared layer.
+   -------------------------------------------------------------------------- */
+
+[data-theme="light"] .studio-jobs .page-chip.is-good {
+  color: #1c7355;
+}
+
+[data-theme="light"] .studio-jobs .page-chip.is-warn {
+  color: #8a5b12;
+}
+
+[data-theme="light"] .studio-jobs .page-chip.is-bad {
+  color: #ad3520;
+}
+
+[data-theme="light"] .studio-jobs .page-chip.is-info {
+  color: #1d5b93;
+}
+
+@media (max-width: 600px) {
+  .studio-jobs .page-table-row.studio-job-row {
+    grid-template-columns: minmax(0, 1fr) auto !important;
+    row-gap: 8px;
+    padding: 12px 6px;
+  }
+
+  .studio-jobs .studio-job-row .studio-job-frames,
+  .studio-jobs .studio-job-row .studio-job-id {
+    display: none;
+  }
+
+  .studio-jobs .studio-job-row .studio-job-meter {
+    grid-column: 1 / -1;
+  }
+
+  .studio-jobs .studio-job-row.page-table-head {
+    display: none;
+  }
+
+  .studio-jobs .page-table-row.studio-frame-row {
+    grid-template-columns: 34px minmax(0, 1fr) auto !important;
+    row-gap: 6px;
+  }
+
+  .studio-jobs .studio-frame-row .studio-frame-worker {
+    grid-column: 1 / -1;
+    white-space: normal;
+    order: 4;
+  }
+
+  .studio-jobs .studio-frame-row.page-table-head {
+    display: none;
+  }
+
+  .studio-jobs .studio-jobs-audit-summary {
+    padding: 14px 18px;
+  }
+
+  .studio-jobs .studio-jobs-audit > .page-note,
+  .studio-jobs .studio-jobs-audit-list {
+    margin: 12px 18px 16px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .studio-jobs button.studio-job-row {
+    transition: none;
+  }
+}
