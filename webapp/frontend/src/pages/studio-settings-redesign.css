@@ -370,3 +370,33 @@
 .settings-toggle-group:disabled {
   opacity: 0.5;
 }
+
+/* Event log card (settings). */
+.settings-event-list {
+  display: grid;
+  gap: 6px;
+  max-height: 360px;
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  list-style: none;
+}
+
+.settings-event {
+  display: grid;
+  gap: 2px;
+  padding: 8px 10px;
+  border-left: 3px solid var(--toast-accent, #8a8a95);
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+.settings-event time {
+  font-size: 11px;
+  opacity: 0.6;
+}
+
+.settings-event.is-good { --toast-accent: #3ecf8e; }
+.settings-event.is-warn { --toast-accent: #f5b942; }
+.settings-event.is-bad { --toast-accent: #ef5350; }
+.settings-event.is-info { --toast-accent: #5aa9ff; }
