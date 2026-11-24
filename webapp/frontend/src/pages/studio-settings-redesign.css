@@ -348,3 +348,25 @@
     transition: none;
   }
 }
+
+/* Notifications card: master switch plus per-event toggles. */
+.settings-toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 6px 0;
+  cursor: pointer;
+}
+
+.settings-toggle-group {
+  display: grid;
+  gap: 4px;
+  margin: 12px 0 0;
+  padding: 0;
+  border: 0;
+  min-inline-size: 0;
+}
+
+.settings-toggle-group:disabled {
+  opacity: 0.5;
+}

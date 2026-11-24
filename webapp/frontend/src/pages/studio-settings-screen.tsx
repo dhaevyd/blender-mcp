@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { dashboardAuthHeaders } from "../api/dashboardAuth";
+import type { NotificationPrefs } from "../common/notificationPrefs";
 
 /** Host-side GPU discovery results. Absent on backends older than the probe. */
 export type GpuProbe = {
@@ -70,9 +71,24 @@ export type SettingsScreenProps = {
   onSignOut: () => void;
   signingOut: boolean;
   signOutError: string;
+  notificationPrefs: NotificationPrefs;
+  onNotificationPrefsChange: (next: NotificationPrefs) => void;
+  notificationsSaveError: boolean;
 };
 
 const CADENCE_OPTIONS = [12, 30, 60, "manual"] as const;
+
+/** Per-event toggles shown under "Notify me when". The master switch is handled separately. */
+const NOTIFICATION_TOGGLES: ReadonlyArray<{
+  key: Exclude<keyof NotificationPrefs, "enabled">;
+  label: string;
+  hint: string;
+}> = [
+  { key: "jobFinished", label: "A render finishes", hint: "completed jobs" },
+  { key: "jobFailed", label: "A render fails", hint: "failed jobs" },
+  { key: "workerChanges", label: "A worker goes offline or returns", hint: "farm node status" },
+  { key: "serverErrors", label: "The server reports a critical problem", hint: "coordinator and GPU alerts" },
+];
 
 export default function SettingsScreen({
   cadence,
@@ -91,6 +107,9 @@ export default function SettingsScreen({
   onSignOut,
   signingOut,
   signOutError,
+  notificationPrefs,
+  onNotificationPrefsChange,
+  notificationsSaveError,
 }: SettingsScreenProps) {
   const system = diagnostics?.system;
   const server = diagnostics?.server;
@@ -217,6 +236,49 @@ export default function SettingsScreen({
                 {refreshing ? "Refreshing…" : "Refresh now"}
               </button>
             </div>
+          </div>
+        </section>
+
+        <section className="nr-card settings-notifications" aria-labelledby="settings-notifications-title">
+          <div className="nr-card-head">
+            <div>
+              <h2 id="settings-notifications-title">Notifications</h2>
+              <p>Pop-up alerts in this dashboard when something changes. Saved in this browser only.</p>
+            </div>
+            <span className="nr-card-count">{notificationPrefs.enabled ? "On" : "Off"}</span>
+          </div>
+          <div className="settings-card-body">
+            <label className="settings-toggle">
+              <input
+                type="checkbox"
+                checked={notificationPrefs.enabled}
+                onChange={(event) => onNotificationPrefsChange({ ...notificationPrefs, enabled: event.target.checked })}
+              />
+              <span>Show notifications</span>
+            </label>
+            <fieldset className="settings-toggle-group" disabled={!notificationPrefs.enabled}>
+              <legend className="page-kicker">Notify me when</legend>
+              {NOTIFICATION_TOGGLES.map((toggle) => (
+                <label key={toggle.key} className="settings-toggle">
+                  <input
+                    type="checkbox"
+                    checked={notificationPrefs[toggle.key]}
+                    onChange={(event) =>
+                      onNotificationPrefsChange({ ...notificationPrefs, [toggle.key]: event.target.checked })
+                    }
+                  />
+                  <span>
+                    {toggle.label}
+                    <small className="page-muted"> {toggle.hint}</small>
+                  </span>
+                </label>
+              ))}
+            </fieldset>
+            <p className={`page-note settings-note${notificationsSaveError ? " is-warn" : ""}`} role="status">
+              {notificationsSaveError
+                ? "Browser storage unavailable; these choices last until the page closes."
+                : "Changes apply immediately."}
+            </p>
           </div>
         </section>
 

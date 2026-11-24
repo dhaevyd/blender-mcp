@@ -45,6 +45,9 @@ import "./studio-nerve.css";
 import "./studio-cards.css";
 import "./studio-pages.css";
 import "./studio-shell.css";
+import { alertEvents, jobEvents, type ToastMessage, workerEvents } from "../common/notificationEvents";
+import { type NotificationPrefs, readNotificationPrefs, writeNotificationPrefs } from "../common/notificationPrefs";
+import ToastStack from "../common/ToastStack";
 import StudioJobs from "./studio-jobs";
 import StudioScreens, { type GalleryFileRequest } from "./studio-screens";
 import SettingsScreen, { type Diagnostics, type GpuProbe } from "./studio-settings-screen";
@@ -1194,6 +1197,13 @@ export default function StudioDashboard() {
   const [diagnostics, setDiagnostics] = useState<Diagnostics | null>(null);
   const [monitorSamples, setMonitorSamples] = useState<MonitorSample[]>([]);
   const [farm, setFarm] = useState<FarmSnapshot | null>(null);
+  const [notificationPrefs, setNotificationPrefs] = useState<NotificationPrefs>(readNotificationPrefs);
+  const [notificationsSaveError, setNotificationsSaveError] = useState(false);
+  const [toasts, setToasts] = useState<ToastMessage[]>([]);
+  // Last state seen per entity. Null until the first snapshot arrives, so history is not replayed.
+  const seenJobs = useRef<Map<string, string> | null>(null);
+  const seenWorkers = useRef<Map<string, boolean> | null>(null);
+  const seenAlerts = useRef<Set<string> | null>(null);
   const [farmGpuTelemetry, setFarmGpuTelemetry] = useState<FarmGpuTelemetry | null>(null);
   const [farmGpuHistory, setFarmGpuHistory] = useState<FarmGpuHistory>({});
   const [authRequired, setAuthRequired] = useState(false);
@@ -1675,6 +1685,56 @@ export default function StudioDashboard() {
     setNotificationsOpen(false);
     document.getElementById("studio-alerts-card")?.scrollIntoView({ behavior: "smooth", block: "center" });
   };
+
+  const dismissToast = useCallback((id: string) => {
+    setToasts((current) => current.filter((toast) => toast.id !== id));
+  }, []);
+
+  const changeNotificationPrefs = useCallback((next: NotificationPrefs) => {
+    setNotificationPrefs(next);
+    setNotificationsSaveError(!writeNotificationPrefs(next));
+  }, []);
+
+  // Turn snapshot changes into toasts. Each ref keeps only the last snapshot, so a change fires once.
+  useEffect(() => {
+    if (farm && !farm.error) {
+      const jobById = new Map<string, { id: string; status: string; label: string }>();
+      for (const job of [...(farm.jobs ?? []), ...(farm.active_jobs ?? [])]) {
+        const id = job.id ?? job.job_id;
+        if (id) jobById.set(id, { id, status: job.status ?? "", label: shortName(job.project_path) || "Render job" });
+      }
+      const jobList = [...jobById.values()];
+
+      const workerList = (farm.workers ?? [])
+        .filter((worker): worker is Worker & { worker_id: string } => Boolean(worker.worker_id))
+        .map((worker) => ({
+          id: worker.worker_id,
+          label: worker.name ?? worker.worker_id,
+          online: Boolean(worker.online),
+        }));
+
+      const events = [
+        ...jobEvents(seenJobs.current, jobList, notificationPrefs),
+        ...workerEvents(seenWorkers.current, workerList, notificationPrefs),
+      ];
+      seenJobs.current = new Map(jobList.map((job) => [job.id, job.status]));
+      seenWorkers.current = new Map(workerList.map((worker) => [worker.id, worker.online]));
+      if (events.length > 0) {
+        setToasts((current) =>
+          [...current.filter((toast) => !events.some((event) => event.id === toast.id)), ...events].slice(-4),
+        );
+      }
+    }
+
+    const criticalIds = alerts.filter((alert) => alert.severity === "critical").map((alert) => alert.id);
+    const alertToasts = alertEvents(seenAlerts.current, alerts, notificationPrefs);
+    seenAlerts.current = new Set(criticalIds);
+    if (alertToasts.length > 0) {
+      setToasts((current) =>
+        [...current.filter((toast) => !alertToasts.some((event) => event.id === toast.id)), ...alertToasts].slice(-4),
+      );
+    }
+  }, [farm, alerts, notificationPrefs]);
 
   const workerLoad = useMemo(() => {
     const byWorker = new Map<string, { id: string; total: number; count: number }>();
@@ -2605,6 +2665,9 @@ export default function StudioDashboard() {
               onSignOut={() => void signOut()}
               signingOut={signingOut}
               signOutError={signOutError}
+              notificationPrefs={notificationPrefs}
+              onNotificationPrefsChange={changeNotificationPrefs}
+              notificationsSaveError={notificationsSaveError}
             />
           ) : (
             <StudioScreens
@@ -2668,6 +2731,7 @@ export default function StudioDashboard() {
           </section>
         </div>
       )}
+      {notificationPrefs.enabled && <ToastStack toasts={toasts} onDismiss={dismissToast} />}
     </div>
   );
 }
