@@ -85,3 +85,25 @@
     transform: none;
   }
 }
+
+/* Bell panel header: event count plus the clear action. */
+.studio-notif-head-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.studio-notif-head-actions button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.studio-notif-head-actions button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}

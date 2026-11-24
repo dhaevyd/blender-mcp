@@ -1,0 +1,33 @@
+# Version control and local state
+.git
+.gitignore
+.env
+.env.*
+.venv
+venv
+logs
+data
+*.log
+*.bak*
+**/*.bak*
+**/__pycache__
+**/*.pyc
+
+# Frontend: dependencies and build output are produced inside the image
+**/node_modules
+webapp/frontend/dist
+
+# Large assets and files the image does not use
+*.blend
+*.blend1
+app-screenshots
+docs
+examples
+native
+src-tauri
+mcpb
+mcpb-packaging
+monitoring
+assets
+tests
+scripts
