@@ -1,3 +1,8 @@
+# studio-dashboard.tsx
+
+Replace `webapp/frontend/src/pages/studio-dashboard.tsx` with the full contents below.
+
+```tsx
 import {
   Activity,
   AlertTriangle,
@@ -48,6 +53,7 @@ import "./studio-shell.css";
 import { alertEvents, jobEvents, type ToastMessage, workerEvents } from "../common/notificationEvents";
 import { type NotificationPrefs, readNotificationPrefs, writeNotificationPrefs } from "../common/notificationPrefs";
 import ToastStack from "../common/ToastStack";
+import { type NotificationLogEntry, prependToLog, readNotificationLog, writeNotificationLog } from "../common/notificationLog";
 import StudioJobs from "./studio-jobs";
 import StudioScreens, { type GalleryFileRequest } from "./studio-screens";
 import SettingsScreen, { type Diagnostics, type GpuProbe } from "./studio-settings-screen";
@@ -1100,12 +1106,36 @@ function MonitoringScreen({
                 />
               ))}
             </div>
+          ) : diagnostics ? (
+            <div className="monitor-cpu-fallback" role="status">
+              <p className="monitor-gpu-empty">
+                No GPU on this host, so renders use CPU.{" "}
+                {diagnostics.host?.virtualization?.kind && diagnostics.host.virtualization.kind !== "none"
+                  ? `Platform: ${diagnostics.host.virtualization.kind}. `
+                  : ""}
+                Coordinator probe: {gpuEmptyMessage(system?.gpu_probe)}
+              </p>
+              <div className="monitor-cpu-fallback-grid">
+                <div>
+                  <span>CPU</span>
+                  <strong>{renderNumber(system?.cpu_percent, "%")}</strong>
+                  <small>
+                    {renderNumber(system?.cpu_logical_threads)} threads · 1m load {renderNumber(system?.load_1m)}
+                  </small>
+                </div>
+                <div>
+                  <span>RAM</span>
+                  <strong>
+                    {typeof system?.memory_used_gb === "number" && typeof system.memory_total_gb === "number"
+                      ? `${system.memory_used_gb} / ${system.memory_total_gb} GB`
+                      : "Unavailable"}
+                  </strong>
+                  <small>{renderNumber(system?.memory_percent, "% used")}</small>
+                </div>
+              </div>
+            </div>
           ) : (
-            <p className="monitor-gpu-empty">
-              {diagnostics
-                ? `No GPUs reported by the coordinator or online farm workers. Coordinator probe: ${gpuEmptyMessage(system?.gpu_probe)}`
-                : "GPU telemetry unavailable until diagnostics respond."}
-            </p>
+            <p className="monitor-gpu-empty">GPU telemetry unavailable until diagnostics respond.</p>
           )}
         </section>
       </div>
@@ -1200,6 +1230,7 @@ export default function StudioDashboard() {
   const [notificationPrefs, setNotificationPrefs] = useState<NotificationPrefs>(readNotificationPrefs);
   const [notificationsSaveError, setNotificationsSaveError] = useState(false);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
+  const [eventLog, setEventLog] = useState<NotificationLogEntry[]>(readNotificationLog);
   // Last state seen per entity. Null until the first snapshot arrives, so history is not replayed.
   const seenJobs = useRef<Map<string, string> | null>(null);
   const seenWorkers = useRef<Map<string, boolean> | null>(null);
@@ -1681,10 +1712,32 @@ export default function StudioDashboard() {
   ).length;
   const hasCriticalAlert = alerts.some((entry) => entry.severity === "critical");
 
-  const openAlertsCard = () => {
+  const openEventLog = () => {
     setNotificationsOpen(false);
-    document.getElementById("studio-alerts-card")?.scrollIntoView({ behavior: "smooth", block: "center" });
+    selectScreen("Settings");
+    // Wait for the Settings screen to mount before scrolling to its event log.
+    window.setTimeout(() => {
+      document.getElementById("settings-event-log")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 0);
   };
+
+  const pushEvents = useCallback((events: ToastMessage[]) => {
+    if (events.length === 0) return;
+    setToasts((current) =>
+      [...current.filter((toast) => !events.some((event) => event.id === toast.id)), ...events].slice(-4),
+    );
+    setEventLog((current) => {
+      const next = prependToLog(current, events);
+      writeNotificationLog(next);
+      return next;
+    });
+  }, []);
+
+  const clearEvents = useCallback(() => {
+    setToasts([]);
+    setEventLog([]);
+    writeNotificationLog([]);
+  }, []);
 
   const dismissToast = useCallback((id: string) => {
     setToasts((current) => current.filter((toast) => toast.id !== id));
@@ -1719,22 +1772,14 @@ export default function StudioDashboard() {
       ];
       seenJobs.current = new Map(jobList.map((job) => [job.id, job.status]));
       seenWorkers.current = new Map(workerList.map((worker) => [worker.id, worker.online]));
-      if (events.length > 0) {
-        setToasts((current) =>
-          [...current.filter((toast) => !events.some((event) => event.id === toast.id)), ...events].slice(-4),
-        );
-      }
+      pushEvents(events);
     }
 
     const criticalIds = alerts.filter((alert) => alert.severity === "critical").map((alert) => alert.id);
     const alertToasts = alertEvents(seenAlerts.current, alerts, notificationPrefs);
     seenAlerts.current = new Set(criticalIds);
-    if (alertToasts.length > 0) {
-      setToasts((current) =>
-        [...current.filter((toast) => !alertToasts.some((event) => event.id === toast.id)), ...alertToasts].slice(-4),
-      );
-    }
-  }, [farm, alerts, notificationPrefs]);
+    pushEvents(alertToasts);
+  }, [farm, alerts, notificationPrefs, pushEvents]);
 
   const workerLoad = useMemo(() => {
     const byWorker = new Map<string, { id: string; total: number; count: number }>();
@@ -2051,8 +2096,17 @@ export default function StudioDashboard() {
                 <div className="studio-notif-panel" id="studio-notifications" role="dialog" aria-label="Notifications">
                   <div className="studio-notif-head">
                     <span>Notifications</span>
-                    <span>
-                      {alerts.length} event{alerts.length === 1 ? "" : "s"}
+                    <span className="studio-notif-head-actions">
+                      <span>
+                        {alerts.length} event{alerts.length === 1 ? "" : "s"}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={clearEvents}
+                        disabled={eventLog.length === 0 && toasts.length === 0}
+                      >
+                        Clear
+                      </button>
                     </span>
                   </div>
                   <div className="studio-notif-list">
@@ -2065,7 +2119,7 @@ export default function StudioDashboard() {
                     ))}
                   </div>
                   <div className="studio-notif-foot">
-                    <button type="button" onClick={openAlertsCard}>
+                    <button type="button" onClick={openEventLog}>
                       View all events <ArrowUpRight size={13} />
                     </button>
                   </div>
@@ -2321,7 +2375,7 @@ export default function StudioDashboard() {
                         ? `${failedJobs.length + offlineWorkers.length} in this session`
                         : "none in this session"}
                     </span>
-                    <button type="button" onClick={openAlertsCard}>
+                    <button type="button" onClick={openEventLog}>
                       View all events <ArrowUpRight size={12} />
                     </button>
                   </div>
@@ -2668,6 +2722,8 @@ export default function StudioDashboard() {
               notificationPrefs={notificationPrefs}
               onNotificationPrefsChange={changeNotificationPrefs}
               notificationsSaveError={notificationsSaveError}
+              eventLog={eventLog}
+              onClearEvents={clearEvents}
             />
           ) : (
             <StudioScreens
@@ -2735,3 +2791,4 @@ export default function StudioDashboard() {
     </div>
   );
 }
+```

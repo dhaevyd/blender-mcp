@@ -12,9 +12,11 @@ farm frame renders) embeds it before calling ``bpy.ops.render.render`` so that:
 * GPU devices of the chosen backend are enabled and the CPU device is disabled
   (hybrid CPU+GPU rendering is deliberately not used).
 * A GPU device that exists but cannot be enabled is a hard error when
-  ``MCP_RENDER_REQUIRE_GPU`` is true (the default), never a silent CPU render.
-* No GPU device at all is the one accepted CPU case: it renders on CPU and logs
-  a warning, because there is no GPU to prefer.
+  ``MCP_RENDER_REQUIRE_GPU`` is true, never a silent CPU render. When that
+  variable is unset it is true only on hosts that have a GPU.
+* No GPU device at all is the accepted CPU case: it renders on CPU and logs
+  a warning, because there is no GPU to prefer. GPU-less VMs and containers
+  take this path by default.
 * EEVEE (4.2 EEVEE Next) is validated against the real GPU context so a software
   or missing context surfaces as an error instead of a broken render.
 
@@ -61,14 +63,18 @@ class GpuRenderError(RuntimeError):
 def require_gpu(environ: Mapping[str, str] | None = None) -> bool:
     """Return whether GPU rendering is mandatory (``MCP_RENDER_REQUIRE_GPU``).
 
-    Defaults to ``True``; only an explicit false-ish value relaxes it. An
+    When the variable is unset, strictness follows the host: a machine with a
+    GPU renders strictly on it, and a GPU-less VM or container renders on CPU
+    instead of failing every render. An explicit value always wins. An
     unrecognised value keeps the strict default so a typo cannot silently
     downgrade renders to CPU.
     """
     source = os.environ if environ is None else environ
     raw = str(source.get(REQUIRE_GPU_ENV, "") or "").strip().lower()
     if not raw:
-        return True
+        from blender_mcp.utils.host_capabilities import host_gpu_present
+
+        return host_gpu_present()
     return raw not in _FALSE_VALUES
 
 

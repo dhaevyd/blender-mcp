@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { dashboardAuthHeaders } from "../api/dashboardAuth";
+import type { NotificationLogEntry } from "../common/notificationLog";
 import type { NotificationPrefs } from "../common/notificationPrefs";
 
 /** Host-side GPU discovery results. Absent on backends older than the probe. */
@@ -21,6 +22,12 @@ export type GpuProbe = {
 };
 
 export type Diagnostics = {
+  host?: {
+    gpu_available?: boolean;
+    render_device?: string;
+    gpu_required?: boolean;
+    virtualization?: { kind?: string; virtual?: boolean | null; container?: boolean | null };
+  };
   server?: {
     name?: string;
     version?: string;
@@ -74,6 +81,8 @@ export type SettingsScreenProps = {
   notificationPrefs: NotificationPrefs;
   onNotificationPrefsChange: (next: NotificationPrefs) => void;
   notificationsSaveError: boolean;
+  eventLog: NotificationLogEntry[];
+  onClearEvents: () => void;
 };
 
 const CADENCE_OPTIONS = [12, 30, 60, "manual"] as const;
@@ -110,6 +119,8 @@ export default function SettingsScreen({
   notificationPrefs,
   onNotificationPrefsChange,
   notificationsSaveError,
+  eventLog,
+  onClearEvents,
 }: SettingsScreenProps) {
   const system = diagnostics?.system;
   const server = diagnostics?.server;
@@ -279,6 +290,36 @@ export default function SettingsScreen({
                 ? "Browser storage unavailable; these choices last until the page closes."
                 : "Changes apply immediately."}
             </p>
+          </div>
+        </section>
+
+        <section id="settings-event-log" className="nr-card settings-event-log" aria-labelledby="settings-event-log-title">
+          <div className="nr-card-head">
+            <div>
+              <h2 id="settings-event-log-title">Event log</h2>
+              <p>Every notification raised in this browser, newest first.</p>
+            </div>
+            <span className="nr-card-count">{eventLog.length}</span>
+          </div>
+          <div className="settings-card-body">
+            {eventLog.length === 0 ? (
+              <p className="page-muted">No events yet. They appear here as renders, workers and the server change.</p>
+            ) : (
+              <ol className="settings-event-list">
+                {eventLog.map((entry, index) => (
+                  <li key={`${entry.id}-${entry.at}-${index}`} className={`settings-event is-${entry.tone}`}>
+                    <time dateTime={entry.at}>{new Date(entry.at).toLocaleString()}</time>
+                    <strong>{entry.title}</strong>
+                    {entry.detail && <span className="page-muted">{entry.detail}</span>}
+                  </li>
+                ))}
+              </ol>
+            )}
+            <div className="page-form-actions">
+              <button type="button" className="page-btn is-sm" onClick={onClearEvents} disabled={eventLog.length === 0}>
+                Clear log
+              </button>
+            </div>
           </div>
         </section>
 

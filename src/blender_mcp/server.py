@@ -960,19 +960,24 @@ async def _diagnostics_endpoint(request):
     uptime = (datetime.datetime.now() - _server_start_time).total_seconds()
     tool_list = [t.name for t in await app.list_tools()]
     from blender_mcp.utils.farm_workers import gpu_stats, mcp_role
+    from blender_mcp.utils.gpu_render import require_gpu
     from blender_mcp.utils.gpu_sysfs import gpu_probe
+    from blender_mcp.utils.host_capabilities import describe_host
 
     bridge_host = os.environ.get("BLENDER_BRIDGE_HOST", os.environ.get("BLENDER_HOST", "127.0.0.1"))
     try:
         bridge_port = int(os.environ.get("BLENDER_BRIDGE_PORT", "10850"))
     except ValueError:
         bridge_port = 10850
-    system, gpus, probe, bridge_alive = await asyncio.gather(
+    system, gpus, probe, bridge_alive, host = await asyncio.gather(
         asyncio.to_thread(_system_diagnostics),
         asyncio.to_thread(gpu_stats),
         asyncio.to_thread(gpu_probe),
         asyncio.to_thread(_blender_bridge_alive, bridge_host, bridge_port),
+        asyncio.to_thread(describe_host),
     )
+    host["render_device"] = "GPU" if host["gpu_available"] else "CPU"
+    host["gpu_required"] = require_gpu()
 
     return JSONResponse(
         {
@@ -986,6 +991,7 @@ async def _diagnostics_endpoint(request):
                 "role": mcp_role(),
             },
             "system": {**system, "gpu": gpus, "gpu_probe": probe},
+            "host": host,
             "blender": {
                 "connected": bridge_alive,
                 "bridge_addon": bridge_alive,

@@ -358,14 +358,6 @@ export default function StudioWorkers({
           <p>Enrolled render nodes, live GPU telemetry and onboarding.</p>
         </div>
         <div className="page-actions">
-          <div className="page-segment" role="group" aria-label="Workers view">
-            <button type="button" aria-pressed={activeView === "roster"} onClick={() => switchView("roster")}>
-              Roster
-            </button>
-            <button type="button" aria-pressed={activeView === "onboarding"} onClick={() => switchView("onboarding")}>
-              Add worker
-            </button>
-          </div>
           <button
             type="button"
             className="page-btn"
@@ -374,6 +366,14 @@ export default function StudioWorkers({
             aria-label="Refresh workers"
           >
             <RefreshCw size={14} aria-hidden="true" /> Refresh
+          </button>
+          <button
+            type="button"
+            className="page-btn is-primary"
+            aria-pressed={activeView === "onboarding"}
+            onClick={() => switchView(activeView === "onboarding" ? "roster" : "onboarding")}
+          >
+            {activeView === "onboarding" ? "Back to roster" : "Add worker"}
           </button>
         </div>
       </div>

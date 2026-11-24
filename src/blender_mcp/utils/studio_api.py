@@ -109,12 +109,19 @@ def _worker_compose_yaml(*, app_version: str, name: str, worker_id: str, workspa
 
     compose_name = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")[:63].rstrip("-") or worker_id
 
-    def base_service() -> dict:
+    def base_service(require_gpu: str) -> dict:
+        # The start script exports MCP_RENDER_REQUIRE_GPU for the profile it picks; the
+        # default here only applies when compose is run by hand.
         return {
             "image": f"ghcr.io/dhaevyd/blender-mcp:{app_version}",
             "container_name": "blender_mcp-worker",
             "env_file": [".env"],
-            "environment": {"MCP_ROLE": "worker", "BLENDER_FARM_WORKER_ID": worker_id, "BLENDER_WORKSPACE": workspace},
+            "environment": {
+                "MCP_ROLE": "worker",
+                "BLENDER_FARM_WORKER_ID": worker_id,
+                "BLENDER_WORKSPACE": workspace,
+                "MCP_RENDER_REQUIRE_GPU": f"${{MCP_RENDER_REQUIRE_GPU:-{require_gpu}}}",
+            },
             "volumes": [f"./{worker_id}-workspace:{workspace}"],
             "ports": [f"{port}:10849"],
             "networks": ["proxy"],
@@ -142,16 +149,22 @@ def _worker_compose_yaml(*, app_version: str, name: str, worker_id: str, workspa
         return service
 
     if gpu_vendor == "auto":
-        # One compose file for every vendor; the host start script turns on exactly
-        # one profile after detecting the GPU, so the shared container_name/ports
-        # are never requested by two services at once.
+        # One compose file for every host: the start script turns on exactly one
+        # profile after detecting the hardware, so the shared container_name/ports
+        # are never requested by two services at once. "cpu" is the fallback for a
+        # VM or machine without a GPU; its renders run on CPU instead of failing.
         services = {}
         for vendor in ("nvidia", "amd", "intel"):
-            service = base_service()
+            service = base_service("true")
             service["profiles"] = [vendor]
             services[f"blender-worker-{vendor}"] = apply_gpu(service, vendor)
+        cpu_service = base_service("false")
+        cpu_service["profiles"] = ["cpu"]
+        services["blender-worker-cpu"] = cpu_service
+    elif gpu_vendor == "cpu":
+        services = {"blender-worker": base_service("false")}
     else:
-        services = {"blender-worker": apply_gpu(base_service(), gpu_vendor)}
+        services = {"blender-worker": apply_gpu(base_service("true"), gpu_vendor)}
     return yaml.safe_dump(
         {
             "name": compose_name,
@@ -181,11 +194,16 @@ if [ -z "$vendor" ] && has_pci_vendor 1002; then vendor="amd"; fi
 if [ -z "$vendor" ] && has_pci_vendor 8086; then vendor="intel"; fi
 
 if [ -z "$vendor" ]; then
-    echo "No NVIDIA, AMD, or Intel GPU found in Linux DRM sysfs." >&2
-    exit 1
+    vendor="cpu"
 fi
 
-echo "Detected $vendor GPU; starting the matching worker profile."
+# GPU hosts must render on the GPU. A host without one renders on CPU, and says so.
+if [ "$vendor" = "cpu" ]; then
+    export MCP_RENDER_REQUIRE_GPU=false
+else
+    export MCP_RENDER_REQUIRE_GPU=true
+fi
+echo "Detected $vendor; starting the matching worker profile (MCP_RENDER_REQUIRE_GPU=$MCP_RENDER_REQUIRE_GPU)."
 exec docker compose --env-file .env -f compose.yaml --profile "$vendor" up -d --remove-orphans
 '''
 
@@ -336,7 +354,7 @@ async def enroll_worker(request: Request):
     name = worker_label or parsed.hostname or ""
     if (
         mode not in {"existing", "compose"}
-        or not isinstance(gpu_vendor, str) or gpu_vendor not in {"auto", "nvidia", "amd", "intel"}
+        or not isinstance(gpu_vendor, str) or gpu_vendor not in {"auto", "nvidia", "amd", "intel", "cpu"}
         or not name or len(name) > 80 or any(ord(c) < 32 for c in name)
         or not isinstance(workspace, str) or not workspace.startswith("/") or len(workspace) > 512
         or any(ord(c) < 32 for c in workspace) or any(x in workspace for x in ("$", "{", "}", "#", ":"))
