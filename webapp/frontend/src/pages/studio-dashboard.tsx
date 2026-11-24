@@ -1,8 +1,3 @@
-# studio-dashboard.tsx
-
-Replace `webapp/frontend/src/pages/studio-dashboard.tsx` with the full contents below.
-
-```tsx
 import {
   Activity,
   AlertTriangle,
@@ -2791,4 +2786,3 @@ export default function StudioDashboard() {
     </div>
   );
 }
-```
