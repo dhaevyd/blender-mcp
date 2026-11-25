@@ -8,8 +8,8 @@
 # Run:
 #   docker run --rm -p 10849:10849 -p 9091:9091 blender-mcp:local
 
-ARG BLENDER_VERSION=4.2.3
-ARG BLENDER_SERIES=4.2
+ARG BLENDER_VERSION=5.2.0
+ARG BLENDER_SERIES=5.2
 
 # ---- Stage 1: build the dashboard -------------------------------------------
 FROM node:22-slim AS frontend
