@@ -3,3 +3,9 @@ data/
 .venv/
 *.blend
 *.blend1
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+logs/
+*.log
