@@ -14,6 +14,8 @@ _executor = get_blender_executor()
 
 class ParticleType(StrEnum):
     EMITTER = "EMITTER"
+    # HAIR is the legacy particle-hair system, deprecated in Blender 4.2+.
+    # Blender 5.x still ships it but new projects should use Hair Curves objects instead.
     HAIR = "HAIR"
     KEYED = "KEYED"
     FLUID_FLOW = "FLUID_FLOW"

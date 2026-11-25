@@ -23,8 +23,8 @@ Environment variables (all optional):
 bl_info = {
     "name": "Blender MCP Bridge",
     "author": "sandraschi",
-    "version": (0, 5, 0),
-    "blender": (4, 2, 0),
+    "version": (0, 6, 0),
+    "blender": (5, 2, 0),
     "location": "Properties > Scene > Blender MCP",
     "description": "TCP socket bridge for blender-mcp — connect your MCP server to live Blender",
     "category": "System",
@@ -281,7 +281,7 @@ def _server_loop():
             _log.info("MCP server connected from %s", addr)
             t = threading.Thread(target=_handle_client, args=(client,), daemon=True)
             t.start()
-        except socket.timeout:
+        except TimeoutError:
             continue
         except OSError:
             break
@@ -310,13 +310,14 @@ def _process_pending():
             code = task.get("code", "")
             output_lines = []
             error_msg = None
-            import io, sys
+            import io
+            import sys
             buf = io.StringIO()
             old_stdout = sys.stdout
             sys.stdout = buf
             try:
                 exec(compile(code, "<mcp_bridge>", "exec"), {"bpy": bpy})
-            except Exception as exc:
+            except Exception:
                 error_msg = traceback.format_exc()
             finally:
                 sys.stdout = old_stdout
@@ -387,7 +388,7 @@ def _process_pending():
                 "filepath": filepath,
             }
 
-    except Exception as exc:
+    except Exception:
         result = {"success": False, "error": traceback.format_exc()}
 
     _result_data = result

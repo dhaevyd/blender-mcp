@@ -43,7 +43,8 @@ class SelectableType(StrEnum):
     LATTICE_POINT = "LATTICE_POINT"
     CONTROL_POINT = "CONTROL_POINT"
     SEGMENT = "SEGMENT"
-    GPENCIL = "GPENCIL"
+    GPENCIL = "GPENCIL"          # GPv2 legacy (Blender < 4.3)
+    GREASEPENCIL = "GREASEPENCIL"  # GPv3 (Blender 4.3+/5.x)
 
 
 @blender_operation("select_objects", log_args=True)

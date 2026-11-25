@@ -1,4 +1,14 @@
-"""Grease Pencil operations handler for Blender MCP."""
+"""Grease Pencil operations handler for Blender MCP.
+
+Targets the GPv3 API introduced in Blender 4.3 and stabilised in 5.x.
+Key GPv3 changes vs GPv2:
+  - Object type: 'GREASEPENCIL' (was 'GPENCIL')
+  - Create op: bpy.ops.object.grease_pencil_add() (was gpencil_add)
+  - Layer name attr: layer.name (was layer.info)
+  - Modifiers: obj.modifiers (standard, was grease_pencil_modifiers)
+  - bpy.ops.gpencil.* operators are removed; use bpy.ops.grease_pencil.*
+  - Stroke/point access uses drawing API on each layer frame
+"""
 
 import logging
 from enum import StrEnum
@@ -14,17 +24,13 @@ _executor = get_blender_executor()
 
 
 class GPStrokePlacement(StrEnum):
-    """Grease Pencil stroke placement modes."""
-
-    ORIGIN = "ORIGIN"  # Draw at origin
-    CURSOR = "CURSOR"  # Draw at 3D cursor
-    SURFACE = "SURFACE"  # Draw on surface under cursor
-    VIEW = "VIEW"  # Draw on view plane
+    ORIGIN = "ORIGIN"
+    CURSOR = "CURSOR"
+    SURFACE = "SURFACE"
+    VIEW = "VIEW"
 
 
 class GPStrokeType(StrEnum):
-    """Grease Pencil stroke types."""
-
     LINE = "LINE"
     BOX = "BOX"
     CIRCLE = "CIRCLE"
@@ -38,53 +44,39 @@ async def create_grease_pencil(
     placement: GPStrokePlacement | str = GPStrokePlacement.ORIGIN,
     **kwargs: Any,
 ) -> dict[str, Any]:
-    """Create a new Grease Pencil object.
+    """Create a new Grease Pencil object (GPv3, Blender 5.x).
 
     Args:
         name: Name for the new Grease Pencil object
-        placement: Where to place the Grease Pencil object
-        **kwargs: Additional parameters
-            - location: Custom location as [x, y, z] (overrides placement)
-            - parent: Parent object name
-
-    Returns:
-        Dict containing creation status and details
+        placement: Where to place it
+        **kwargs: location ([x,y,z]), parent (object name)
     """
     location = kwargs.get("location")
     parent = kwargs.get("parent")
 
     script = f"""
-
 def create_gp():
-    # Check if GP object with this name already exists
-    if '{name}' in bpy.data.objects:
-        return {{"status": "ERROR", "error": f"Object '{{name}}' already exists"}}
+    if {name!r} in bpy.data.objects:
+        return {{"status": "ERROR", "error": f"Object '{name!r}' already exists"}}
 
     try:
-        # Create new Grease Pencil object
-        bpy.ops.object.gpencil_add(type='EMPTY')
+        bpy.ops.object.grease_pencil_add(type='EMPTY')
         gp_obj = bpy.context.active_object
-        gp_obj.name = '{name}'
+        gp_obj.name = {name!r}
 
-        # Set location based on placement
-        if {location}:
-            gp_obj.location = {location}
-        else:
-            if '{placement}' == 'CURSOR':
-                gp_obj.location = bpy.context.scene.cursor.location
-            # For other placements, we'll add a default layer and frame
+        if {location!r}:
+            gp_obj.location = {location!r}
+        elif {str(placement)!r} == 'CURSOR':
+            gp_obj.location = bpy.context.scene.cursor.location
 
-        # Add a default layer and frame
+        # GPv3: ensure at least one layer exists
         if not gp_obj.data.layers:
-            layer = gp_obj.data.layers.new("GP_Layer")
-            layer.frames.new(1)
+            gp_obj.data.layers.new("GP_Layer")
 
-        # Set as active object
         bpy.context.view_layer.objects.active = gp_obj
 
-        # Parent if specified
-        if '{parent}':
-            parent_obj = bpy.data.objects.get('{parent}')
+        if {parent!r}:
+            parent_obj = bpy.data.objects.get({parent!r})
             if parent_obj:
                 gp_obj.parent = parent_obj
 
@@ -92,10 +84,9 @@ def create_gp():
             "status": "SUCCESS",
             "object": gp_obj.name,
             "type": gp_obj.type,
-            "location": tuple(gp_obj.location)
+            "location": tuple(gp_obj.location),
         }}
     except Exception as e:
-        # Clean up if something went wrong
         if 'gp_obj' in locals() and gp_obj.name in bpy.data.objects:
             bpy.data.objects.remove(gp_obj)
         return {{"status": "ERROR", "error": str(e)}}
@@ -106,7 +97,6 @@ try:
 except Exception as e:
     print(str({{'status': 'ERROR', 'error': str(e)}}))
 """
-
     try:
         output = await _executor.execute_script(script)
         return {"status": "SUCCESS", "output": output}
@@ -122,21 +112,15 @@ async def draw_grease_pencil_stroke(
     points: list[tuple[float, float, float]] | None = None,
     **kwargs: Any,
 ) -> dict[str, Any]:
-    """Draw a stroke with the Grease Pencil.
+    """Draw a stroke on a Grease Pencil object (GPv3).
 
     Args:
         gp_object: Name of the Grease Pencil object
-        stroke_type: Type of stroke to draw
-        points: List of points for the stroke (for LINE or CURVE types)
-        **kwargs: Additional parameters
-            - layer_name: Layer to draw on (default: active layer or 'GP_Layer')
-            - frame_number: Frame number to draw on (default: 1)
-            - color: Stroke color as [r, g, b, a] (0-1 range)
-            - thickness: Stroke thickness (default: 1.0)
-            - cyclic: Whether to close the stroke (default: False)
-
-    Returns:
-        Dict containing drawing status and details
+        stroke_type: LINE, BOX, or CIRCLE
+        points: List of (x,y,z) tuples for LINE/CURVE strokes
+        **kwargs: layer_name, frame_number, color [r,g,b,a], thickness,
+                  cyclic, width (BOX), height (BOX), radius (CIRCLE),
+                  segments (CIRCLE)
     """
     if points is None:
         points = []
@@ -151,112 +135,91 @@ async def draw_grease_pencil_stroke(
 import math
 
 def draw_stroke():
-    # Get the Grease Pencil object
-    gp_obj = bpy.data.objects.get('{gp_object}')
-    if not gp_obj or gp_obj.type != 'GPENCIL':
-        return {{"status": "ERROR", "error": "Grease Pencil object not found"}}
+    gp_obj = bpy.data.objects.get({gp_object!r})
+    if not gp_obj or gp_obj.type != 'GREASEPENCIL':
+        return {{"status": "ERROR", "error": "Grease Pencil object not found (expected type GREASEPENCIL)"}}
 
-    # Get or create layer
     gp_data = gp_obj.data
-    layer = gp_data.layers.get('{layer_name}')
-    if not layer:
-        layer = gp_data.layers.new('{layer_name}')
 
-    # Get or create frame
-    frame = layer.frames.get({frame_number})
-    if not frame:
+    # GPv3: get or create layer by name
+    layer = gp_data.layers.get({layer_name!r})
+    if not layer:
+        layer = gp_data.layers.new({layer_name!r})
+
+    # GPv3: get or create a frame at the requested frame number
+    frame = None
+    for f in layer.frames:
+        if f.frame_number == {frame_number}:
+            frame = f
+            break
+    if frame is None:
         frame = layer.frames.new({frame_number})
 
-    # Create stroke
-    stroke = frame.strokes.new()
-    stroke.line_width = {thickness}
-    stroke.use_cyclic = {str(cyclic).lower()}
+    # Build point list depending on stroke type
+    stroke_type = {str(stroke_type)!r}
+    raw_points = []
 
-    # Set stroke points based on type
-    if '{stroke_type}' == 'LINE':
-        points = {points}
-        if len(points) < 2:
+    if stroke_type == 'LINE':
+        raw_points = {points!r}
+        if len(raw_points) < 2:
             return {{"status": "ERROR", "error": "At least 2 points required for LINE stroke"}}
 
-        stroke.points.add(count=len(points))
-        for i, point in enumerate(points):
-            stroke.points[i].co = point
-            stroke.points[i].pressure = 1.0
-
-    elif '{stroke_type}' == 'BOX':
-        # Draw a rectangle
-        width = {kwargs.get("width", 2.0)}
-        height = {kwargs.get("height", 2.0)}
-
-        points = [
-            (-width/2, -height/2, 0),
-            (width/2, -height/2, 0),
-            (width/2, height/2, 0),
-            (-width/2, height/2, 0)
+    elif stroke_type == 'BOX':
+        w = {kwargs.get("width", 2.0)!r}
+        h = {kwargs.get("height", 2.0)!r}
+        raw_points = [
+            (-w/2, -h/2, 0), (w/2, -h/2, 0),
+            (w/2,  h/2, 0), (-w/2, h/2, 0),
         ]
 
-        stroke.points.add(count=4)
-        for i, point in enumerate(points):
-            stroke.points[i].co = point
-            stroke.points[i].pressure = 1.0
+    elif stroke_type == 'CIRCLE':
+        radius = {kwargs.get("radius", 1.0)!r}
+        segs   = {kwargs.get("segments", 32)!r}
+        raw_points = [
+            (math.cos(2*math.pi*i/segs)*radius,
+             math.sin(2*math.pi*i/segs)*radius, 0)
+            for i in range(segs)
+        ]
 
-    elif '{stroke_type}' == 'CIRCLE':
-        # Draw a circle
-        radius = {kwargs.get("radius", 1.0)}
-        segments = {kwargs.get("segments", 32)}
+    # GPv3 drawing API: use a Drawing on the frame
+    # Each frame exposes drawing() which is a GreasePencilDrawing
+    drawing = frame.drawing
 
-        stroke.points.add(count=segments)
-        for i in range(segments):
-            angle = (i / segments) * 2 * math.pi
-            x = math.cos(angle) * radius
-            y = math.sin(angle) * radius
-            stroke.points[i].co = (x, y, 0)
-            stroke.points[i].pressure = 1.0
+    # Add a new curve (stroke) to the drawing
+    old_count = len(drawing.strokes) if hasattr(drawing, 'strokes') else 0
+    drawing.add_strokes([len(raw_points)])
+    stroke = drawing.strokes[old_count]
 
-    # Set stroke color
-    mat = None
-    color = {color}
+    for i, pt in enumerate(raw_points):
+        stroke.points[i].position = pt
+        stroke.points[i].radius = {float(thickness)!r}
+        stroke.points[i].opacity = 1.0
 
-    # Check if material with this color exists
+    stroke.cyclic = {cyclic!r}
+
+    # Assign material — create a simple GP material if needed
+    color = {color!r}
     mat_name = f"GP_Mat_{{int(color[0]*255)}}_{{int(color[1]*255)}}_{{int(color[2]*255)}}"
-    if mat_name in bpy.data.materials:
-        mat = bpy.data.materials[mat_name]
-    else:
-        # Create new material
+    if mat_name not in bpy.data.materials:
         mat = bpy.data.materials.new(mat_name)
-        mat.diffuse_color = color
+        bpy.data.materials.create_gpencil_data(mat)
+        mat.grease_pencil.color = color[:4]
+    else:
+        mat = bpy.data.materials[mat_name]
 
-        # Enable use nodes for Eevee/Cycles
-        mat.use_nodes = True
-        nodes = mat.node_tree.nodes
-
-        # Clear default nodes
-        for node in nodes:
-            nodes.remove(node)
-
-        # Create shader nodes
-        output = nodes.new('ShaderNodeOutputMaterial')
-        shader = nodes.new('ShaderNodeEmission')
-        shader.inputs[0].default_value = (*color[:3], 1.0)  # RGBA
-
-        # Link nodes
-        mat.node_tree.links.new(shader.outputs[0], output.inputs[0])
-
-    # Assign material to stroke
-    if mat.name not in gp_data.materials:
+    if mat.name not in [m.name for m in gp_data.materials if m]:
         gp_data.materials.append(mat)
 
-    mat_idx = gp_data.materials.find(mat.name)
-    if mat_idx >= 0:
-        stroke.material_index = mat_idx
+    mat_idx = next((i for i, m in enumerate(gp_data.materials) if m and m.name == mat.name), 0)
+    stroke.material_index = mat_idx
 
     return {{
         "status": "SUCCESS",
         "object": gp_obj.name,
-        "layer": layer.info,
-        "frame": frame.frame_number,
+        "layer": layer.name,
+        "frame": {frame_number},
         "stroke_points": len(stroke.points),
-        "material": mat.name
+        "material": mat.name,
     }}
 
 try:
@@ -265,7 +228,6 @@ try:
 except Exception as e:
     print(str({{'status': 'ERROR', 'error': str(e)}}))
 """
-
     try:
         output = await _executor.execute_script(script)
         return {"status": "SUCCESS", "output": output}
@@ -281,7 +243,7 @@ async def set_gp_material(
     stroke_color: list[float] | None = None,
     fill_color: list[float] | None = None,
 ) -> dict[str, Any]:
-    """Create and assign a Grease Pencil material with stroke/fill color."""
+    """Create and assign a Grease Pencil material (GPv3)."""
     if stroke_color is None:
         stroke_color = [0.0, 0.0, 0.0, 1.0]
     if fill_color is None:
@@ -289,42 +251,35 @@ async def set_gp_material(
 
     script = f"""
 def set_gp_mat():
-    gp_obj = bpy.data.objects.get('{gp_object}')
-    if not gp_obj or gp_obj.type != 'GPENCIL':
-        return {{"status": "ERROR", "error": "GP object not found"}}
+    gp_obj = bpy.data.objects.get({gp_object!r})
+    if not gp_obj or gp_obj.type != 'GREASEPENCIL':
+        return {{"status": "ERROR", "error": "GP object not found (expected type GREASEPENCIL)"}}
 
     gp_data = gp_obj.data
-    mat_name = '{material_name}'
+    mat_name = {material_name!r}
 
     if mat_name in bpy.data.materials:
         mat = bpy.data.materials[mat_name]
     else:
         mat = bpy.data.materials.new(mat_name)
-        mat.use_nodes = True
-        nodes = mat.node_tree.nodes
-        for n in nodes:
-            nodes.remove(n)
+        # GPv3: initialise GP material data block
+        bpy.data.materials.create_gpencil_data(mat)
 
-    cycles = False
-    if hasattr(bpy.context.scene, 'render') and hasattr(bpy.context.scene.render, 'engine'):
-        cycles = bpy.context.scene.render.engine == 'CYCLES'
+    gp_mat = mat.grease_pencil
+    gp_mat.color = {stroke_color[:4]!r}
+    gp_mat.show_stroke = True
 
-    if cycles:
-        output = nodes.new('ShaderNodeOutputMaterial')
-        shader = nodes.new('ShaderNodeBsdfPrincipled')
-        shader.inputs['Base Color'].default_value = ({stroke_color[0]:.4f}, {stroke_color[1]:.4f}, {stroke_color[2]:.4f}, 1.0)
-        shader.inputs['Alpha'].default_value = {stroke_color[3]:.4f}
-        mat.node_tree.links.new(shader.outputs['BSDF'], output.inputs['Surface'])
+    if {fill_color[3]!r} > 0.0:
+        gp_mat.show_fill = True
+        gp_mat.fill_color = {fill_color[:4]!r}
     else:
-        output = nodes.new('ShaderNodeOutputMaterial')
-        shader = nodes.new('ShaderNodeEmission')
-        shader.inputs[0].default_value = ({stroke_color[0]:.4f}, {stroke_color[1]:.4f}, {stroke_color[2]:.4f}, 1.0)
-        mat.node_tree.links.new(shader.outputs[0], output.inputs[0])
+        gp_mat.show_fill = False
 
-    if mat.name not in gp_data.materials:
+    if mat.name not in [m.name for m in gp_data.materials if m]:
         gp_data.materials.append(mat)
 
-    return {{"status": "SUCCESS", "material": mat.name, "stroke": {stroke_color}, "fill": {fill_color}}}
+    return {{"status": "SUCCESS", "material": mat.name,
+             "stroke": {stroke_color!r}, "fill": {fill_color!r}}}
 
 try:
     result = set_gp_mat()
@@ -347,20 +302,24 @@ async def set_gp_layer(
     from_layer: str = "",
     to_layer: str = "",
 ) -> dict[str, Any]:
-    """Create, reorder, or toggle Grease Pencil layers."""
+    """Create or query a Grease Pencil layer (GPv3)."""
     script = f"""
 def set_gp_layers():
-    gp_obj = bpy.data.objects.get('{gp_object}')
-    if not gp_obj or gp_obj.type != 'GPENCIL':
+    gp_obj = bpy.data.objects.get({gp_object!r})
+    if not gp_obj or gp_obj.type != 'GREASEPENCIL':
         return {{"status": "ERROR", "error": "GP object not found"}}
 
     gp_data = gp_obj.data
-    layer = gp_data.layers.get('{layer_name}')
+    layer = gp_data.layers.get({layer_name!r})
     if not layer:
-        layer = gp_data.layers.new('{layer_name}')
-        layer.frames.new(1)
+        layer = gp_data.layers.new({layer_name!r})
 
-    return {{"status": "SUCCESS", "layer": layer.info, "opacity": layer.opacity, "visible": not layer.hide}}
+    return {{
+        "status": "SUCCESS",
+        "layer": layer.name,
+        "opacity": layer.opacity,
+        "visible": not layer.hide,
+    }}
 
 try:
     result = set_gp_layers()
@@ -382,20 +341,25 @@ async def animate_gp_stroke(
     layer_name: str = "GP_Layer",
     frame_number: int = 1,
 ) -> dict[str, Any]:
-    """Keyframe Grease Pencil object transforms on a specific frame."""
+    """Keyframe Grease Pencil object transforms on a specific frame (GPv3)."""
     script = f"""
 def animate_gp():
-    gp_obj = bpy.data.objects.get('{gp_object}')
-    if not gp_obj or gp_obj.type != 'GPENCIL':
+    gp_obj = bpy.data.objects.get({gp_object!r})
+    if not gp_obj or gp_obj.type != 'GREASEPENCIL':
         return {{"status": "ERROR", "error": "GP object not found"}}
 
     gp_data = gp_obj.data
-    layer = gp_data.layers.get('{layer_name}')
+    layer = gp_data.layers.get({layer_name!r})
     if not layer:
-        layer = gp_data.layers.new('{layer_name}')
+        layer = gp_data.layers.new({layer_name!r})
 
-    frame = layer.frames.get({frame_number})
-    if not frame:
+    # Ensure a frame exists
+    frame = None
+    for f in layer.frames:
+        if f.frame_number == {frame_number}:
+            frame = f
+            break
+    if frame is None:
         frame = layer.frames.new({frame_number})
 
     bpy.context.scene.frame_set({frame_number})
@@ -403,7 +367,7 @@ def animate_gp():
     gp_obj.keyframe_insert(data_path="rotation_euler")
     gp_obj.keyframe_insert(data_path="scale")
 
-    return {{"status": "SUCCESS", "object": gp_obj.name, "layer": layer.info, "frame": {frame_number}}}
+    return {{"status": "SUCCESS", "object": gp_obj.name, "layer": layer.name, "frame": {frame_number}}}
 
 try:
     result = animate_gp()
@@ -425,22 +389,26 @@ async def onion_skinning_gp(
     before_frames: int = 3,
     after_frames: int = 3,
 ) -> dict[str, Any]:
-    """Enable or disable onion skinning on a Grease Pencil object."""
+    """Enable onion skinning on a Grease Pencil object (GPv3)."""
     script = f"""
 def onion_skin():
-    gp_obj = bpy.data.objects.get('{gp_object}')
-    if not gp_obj or gp_obj.type != 'GPENCIL':
+    gp_obj = bpy.data.objects.get({gp_object!r})
+    if not gp_obj or gp_obj.type != 'GREASEPENCIL':
         return {{"status": "ERROR", "error": "GP object not found"}}
 
     gp_data = gp_obj.data
-    gp_data.onion_skin_frames = {before_frames}
-    gp_data.onion_skin_frames_future = {after_frames}
+    # GPv3 onion skinning properties
+    gp_data.use_onion_skinning = True
+    # before/after counts live on the data block in GPv3
+    if hasattr(gp_data, 'ghost_before_range'):
+        gp_data.ghost_before_range = {before_frames}
+        gp_data.ghost_after_range  = {after_frames}
 
     return {{
         "status": "SUCCESS",
         "before_frames": {before_frames},
         "after_frames": {after_frames},
-        "onion_skin_enabled": True
+        "onion_skin_enabled": True,
     }}
 
 try:
@@ -460,21 +428,27 @@ except Exception as e:
 @blender_operation("add_gp_modifier", log_args=True)
 async def add_gp_modifier(
     gp_object: str,
-    modifier_type: str = "BUILD",
+    modifier_type: str = "GREASE_PENCIL_BUILD",
     settings: str = "",
 ) -> dict[str, Any]:
-    """Add a modifier to a Grease Pencil object (BUILD, NOISE, SIMPLIFY, SMOOTH)."""
+    """Add a modifier to a Grease Pencil object (GPv3).
+
+    GPv3 modifier type names use the GREASE_PENCIL_ prefix, e.g.:
+      GREASE_PENCIL_BUILD, GREASE_PENCIL_NOISE, GREASE_PENCIL_SIMPLIFY,
+      GREASE_PENCIL_SMOOTH, GREASE_PENCIL_SUBDIV, GREASE_PENCIL_TINT
+    """
     script = f"""
 def add_gp_mod():
-    gp_obj = bpy.data.objects.get('{gp_object}')
-    if not gp_obj or gp_obj.type != 'GPENCIL':
+    gp_obj = bpy.data.objects.get({gp_object!r})
+    if not gp_obj or gp_obj.type != 'GREASEPENCIL':
         return {{"status": "ERROR", "error": "GP object not found"}}
 
-    mod = gp_obj.grease_pencil_modifiers.new(name="{modifier_type}_mod", type='{modifier_type}')
+    # GPv3: modifiers live on obj.modifiers, same as mesh objects
+    mod = gp_obj.modifiers.new(name={modifier_type + "_mod"!r}, type={modifier_type!r})
     if not mod:
-        return {{"status": "ERROR", "error": "Failed to create modifier"}}
+        return {{"status": "ERROR", "error": f"Failed to create modifier of type '{modifier_type!r}'"}}
 
-    return {{"status": "SUCCESS", "modifier": mod.name, "type": '{modifier_type}'}}
+    return {{"status": "SUCCESS", "modifier": mod.name, "type": {modifier_type!r}}}
 
 try:
     result = add_gp_mod()
@@ -497,34 +471,34 @@ async def fill_gp_region(
     frame_number: int = 1,
     fill_color: list[float] | None = None,
 ) -> dict[str, Any]:
-    """Fill enclosed stroke regions with color using Grease Pencil fill tool."""
+    """Assign a fill material to a Grease Pencil layer (GPv3)."""
     if fill_color is None:
         fill_color = [0.5, 0.5, 0.5, 1.0]
 
     script = f"""
 def fill_region():
-    gp_obj = bpy.data.objects.get('{gp_object}')
-    if not gp_obj or gp_obj.type != 'GPENCIL':
+    gp_obj = bpy.data.objects.get({gp_object!r})
+    if not gp_obj or gp_obj.type != 'GREASEPENCIL':
         return {{"status": "ERROR", "error": "GP object not found"}}
 
-    bpy.context.view_layer.objects.active = gp_obj
-    gp_obj.select_set(True)
-
     gp_data = gp_obj.data
-    layer = gp_data.layers.get('{layer_name}')
+    layer = gp_data.layers.get({layer_name!r})
     if not layer:
         return {{"status": "ERROR", "error": "Layer not found"}}
 
-    mat = None
-    fill_rgba = {fill_color}
+    fill_rgba = {fill_color[:4]!r}
     mat_name = f"Fill_Mat_{{int(fill_rgba[0]*255)}}_{{int(fill_rgba[1]*255)}}_{{int(fill_rgba[2]*255)}}"
-    if mat_name in bpy.data.materials:
-        mat = bpy.data.materials[mat_name]
-    else:
-        mat = bpy.data.materials.new(mat_name)
-        mat.diffuse_color = fill_rgba
 
-    if mat.name not in gp_data.materials:
+    if mat_name not in bpy.data.materials:
+        mat = bpy.data.materials.new(mat_name)
+        bpy.data.materials.create_gpencil_data(mat)
+        mat.grease_pencil.show_fill = True
+        mat.grease_pencil.fill_color = fill_rgba
+        mat.grease_pencil.show_stroke = False
+    else:
+        mat = bpy.data.materials[mat_name]
+
+    if mat.name not in [m.name for m in gp_data.materials if m]:
         gp_data.materials.append(mat)
 
     return {{"status": "SUCCESS", "material": mat.name, "color": fill_rgba}}
@@ -551,20 +525,25 @@ async def interpolate_gp_frames(
     frame_end: int = 10,
     num_frames: int = 5,
 ) -> dict[str, Any]:
-    """Generate interpolated in-between frames in Grease Pencil."""
+    """Report frame range info on a Grease Pencil layer (GPv3).
+
+    Note: GPv3 removed the old gpencil.interpolate_sequence operator.
+    This function reports the available frame range; actual interpolation
+    is performed by Blender's built-in timeline tools.
+    """
     script = f"""
 def interpolate_gp():
-    gp_obj = bpy.data.objects.get('{gp_object}')
-    if not gp_obj or gp_obj.type != 'GPENCIL':
+    gp_obj = bpy.data.objects.get({gp_object!r})
+    if not gp_obj or gp_obj.type != 'GREASEPENCIL':
         return {{"status": "ERROR", "error": "GP object not found"}}
 
     gp_data = gp_obj.data
-    layer = gp_data.layers.get('{layer_name}')
+    layer = gp_data.layers.get({layer_name!r})
     if not layer:
         return {{"status": "ERROR", "error": "Layer not found"}}
 
-    frame_a = layer.frames.get({frame_start})
-    frame_b = layer.frames.get({frame_end})
+    frame_a = next((f for f in layer.frames if f.frame_number == {frame_start}), None)
+    frame_b = next((f for f in layer.frames if f.frame_number == {frame_end}), None)
     if not frame_a or not frame_b:
         return {{"status": "ERROR", "error": "Start or end frame not found"}}
 
@@ -573,11 +552,10 @@ def interpolate_gp():
 
     return {{
         "status": "SUCCESS",
-        "layer": layer.info,
+        "layer": layer.name,
         "frame_start": {frame_start},
         "frame_end": {frame_end},
-        "strokes_start": len(frame_a.strokes) if frame_a else 0,
-        "strokes_end": len(frame_b.strokes) if frame_b else 0
+        "note": "GPv3 — use Blender timeline tools for in-between frame generation",
     }}
 
 try:
@@ -600,30 +578,33 @@ async def delete_gp_strokes(
     layer_name: str = "GP_Layer",
     selection_type: str = "ALL",
 ) -> dict[str, Any]:
-    """Delete strokes from a Grease Pencil frame."""
+    """Delete strokes from a Grease Pencil layer (GPv3)."""
     script = f"""
 def delete_gp_strokes_fn():
-    gp_obj = bpy.data.objects.get('{gp_object}')
-    if not gp_obj or gp_obj.type != 'GPENCIL':
+    gp_obj = bpy.data.objects.get({gp_object!r})
+    if not gp_obj or gp_obj.type != 'GREASEPENCIL':
         return {{"status": "ERROR", "error": "GP object not found"}}
 
     gp_data = gp_obj.data
-    layer = gp_data.layers.get('{layer_name}')
+    layer = gp_data.layers.get({layer_name!r})
     if not layer:
         return {{"status": "ERROR", "error": "Layer not found"}}
 
     count = 0
     for frame in layer.frames:
-        if '{selection_type}' == 'ALL':
-            count += len(frame.strokes)
-            frame.strokes.clear()
-        elif '{selection_type}' == 'VISIBLE':
-            for stroke in list(frame.strokes):
-                if not stroke.hide:
-                    frame.strokes.remove(stroke)
+        drawing = frame.drawing
+        if {selection_type!r} == 'ALL':
+            count += len(drawing.strokes)
+            # GPv3: remove all strokes by removing each one
+            while len(drawing.strokes) > 0:
+                drawing.remove_stroke(drawing.strokes[0])
+        elif {selection_type!r} == 'VISIBLE':
+            for stroke in list(drawing.strokes):
+                if not getattr(stroke, 'hide', False):
+                    drawing.remove_stroke(stroke)
                     count += 1
 
-    return {{"status": "SUCCESS", "deleted": count, "layer": layer.info}}
+    return {{"status": "SUCCESS", "deleted": count, "layer": layer.name}}
 
 try:
     result = delete_gp_strokes_fn()
@@ -641,24 +622,25 @@ except Exception as e:
 
 @blender_operation("list_gp_layers", log_args=True)
 async def list_gp_layers(gp_object: str) -> dict[str, Any]:
-    """List all layers and frame info on a Grease Pencil object."""
+    """List all layers and frame info on a Grease Pencil object (GPv3)."""
     script = f"""
 def list_layers():
-    gp_obj = bpy.data.objects.get('{gp_object}')
-    if not gp_obj or gp_obj.type != 'GPENCIL':
+    gp_obj = bpy.data.objects.get({gp_object!r})
+    if not gp_obj or gp_obj.type != 'GREASEPENCIL':
         return {{"status": "ERROR", "error": "GP object not found"}}
 
     gp_data = gp_obj.data
     layers_info = []
     for layer in gp_data.layers:
         frames = [f.frame_number for f in layer.frames]
+        stroke_total = sum(len(f.drawing.strokes) for f in layer.frames)
         layers_info.append({{
-            "name": layer.info,
+            "name": layer.name,
             "opacity": layer.opacity,
             "visible": not layer.hide,
             "locked": layer.lock,
             "frames": sorted(frames),
-            "stroke_count": sum(len(f.strokes) for f in layer.frames)
+            "stroke_count": stroke_total,
         }})
 
     return {{"status": "SUCCESS", "layers": layers_info, "total_layers": len(layers_info)}}
@@ -678,75 +660,55 @@ except Exception as e:
 
 
 @blender_operation("convert_grease_pencil", log_args=True)
-async def convert_grease_pencil(gp_object: str, target_type: str = "MESH", **kwargs: Any) -> dict[str, Any]:
-    """Convert Grease Pencil object to another type.
+async def convert_grease_pencil(
+    gp_object: str,
+    target_type: str = "MESH",
+    **kwargs: Any,
+) -> dict[str, Any]:
+    """Convert a Grease Pencil object to another type (GPv3).
 
     Args:
-        gp_object: Name of the Grease Pencil object to convert
-        target_type: Target type ('MESH', 'CURVE', 'GP_STROKES')
-        **kwargs: Additional parameters
-            - keep_original: Keep the original object (default: False)
-            - thickness: Thickness for converted geometry (default: 0.1)
-
-    Returns:
-        Dict containing conversion status and details
+        gp_object: Name of the Grease Pencil object
+        target_type: 'MESH' or 'CURVE'
+        **kwargs: keep_original (bool), thickness (float)
     """
     keep_original = kwargs.get("keep_original", False)
-    thickness = kwargs.get("thickness", 0.1)
 
     script = f"""
-
 def convert_gp():
-    # Get the Grease Pencil object
-    gp_obj = bpy.data.objects.get('{gp_object}')
-    if not gp_obj or gp_obj.type != 'GPENCIL':
-        return {{"status": "ERROR", "error": "Grease Pencil object not found"}}
+    gp_obj = bpy.data.objects.get({gp_object!r})
+    if not gp_obj or gp_obj.type != 'GREASEPENCIL':
+        return {{"status": "ERROR", "error": "Grease Pencil object not found (expected type GREASEPENCIL)"}}
 
     try:
-        # Select the object and make it active
         bpy.ops.object.select_all(action='DESELECT')
         bpy.context.view_layer.objects.active = gp_obj
         gp_obj.select_set(True)
-
-        # Store original object name
         original_name = gp_obj.name
 
-        # Convert based on target type
-        if '{target_type}' == 'MESH':
-            bpy.ops.gpencil.convert(type='PATH', timing_mode='NONE', use_timing_data=False)
+        target = {target_type!r}
+        if target == 'MESH':
+            # GPv3: convert GP to mesh via standard object convert
             bpy.ops.object.convert(target='MESH')
-        elif '{target_type}' == 'CURVE':
-            bpy.ops.gpencil.convert(type='CURVE', timing_mode='NONE', use_timing_data=False)
-        elif '{target_type}' == 'GP_STROKES':
-            # Convert to new Grease Pencil with evaluated strokes
-            bpy.ops.gpencil.convert(type='CURVE', timing_mode='NONE', use_timing_data=False)
-            curve_obj = bpy.context.active_object
-            bpy.ops.object.convert(target='GPENCIL')
-
-            # Set thickness for the new GP object
-            new_gp = bpy.context.active_object
-            if hasattr(new_gp.data, 'layers') and new_gp.data.layers:
-                for layer in new_gp.data.layers:
-                    layer.line_change = {thickness}
+        elif target == 'CURVE':
+            bpy.ops.object.convert(target='CURVE')
         else:
-            return {{"status": "ERROR", "error": f"Unsupported target type: {{target_type}}"}}
+            return {{"status": "ERROR", "error": f"Unsupported target type: {{target}}"}}
 
-        # Get the converted object
         converted_obj = bpy.context.active_object
-
-        # Rename the converted object
         if converted_obj and converted_obj != gp_obj:
-            converted_obj.name = f"{{original_name}}_{{target_type.lower()}}"
+            converted_obj.name = f"{{original_name}}_{{target.lower()}}"
 
-        # Remove original if not keeping it
-        if not {str(keep_original).lower()} and converted_obj != gp_obj:
-            bpy.data.objects.remove(gp_obj)
+        if not {keep_original!r} and bpy.data.objects.get(original_name):
+            orig = bpy.data.objects.get(original_name)
+            if orig and orig != converted_obj:
+                bpy.data.objects.remove(orig)
 
         return {{
             "status": "SUCCESS",
-            "original_object": original_name if {str(keep_original).lower()} else None,
+            "original_object": original_name if {keep_original!r} else None,
             "converted_object": converted_obj.name if converted_obj else None,
-            "target_type": '{target_type}'
+            "target_type": target,
         }}
     except Exception as e:
         return {{"status": "ERROR", "error": str(e)}}
@@ -757,7 +719,6 @@ try:
 except Exception as e:
     print(str({{'status': 'ERROR', 'error': str(e)}}))
 """
-
     try:
         output = await _executor.execute_script(script)
         return {"status": "SUCCESS", "output": output}
