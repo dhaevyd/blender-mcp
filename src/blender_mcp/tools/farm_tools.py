@@ -54,11 +54,21 @@ def _register_farm_tools() -> None:
         output_directory: str = "",
         project_id: str = "",
         limit: int = 20,
+        source: str = "",
+        destination: str = "",
+        mode: str = "copy",
+        overwrite: bool = False,
+        path: str = "",
     ) -> dict[str, Any]:
         """Control a distributed Blender render farm across authenticated Blender MCP workers.
 
         Operations: status, workers, submit, job_status, list_jobs, pause, resume,
-        cancel, retry_failed, missing_frames, outputs.
+        cancel, retry_failed, missing_frames, outputs, transfer, cleanup.
+        cleanup deletes path (relative to each worker's workspace) on worker_ids and is permanent.
+        transfer copies or cuts a file or folder between master and one worker, using
+        source/destination endpoints like "master:renders/shot1" or "<worker_id>:renders/shot1".
+        mode is "copy" or "cut"; a cut from master goes to .trash, a cut from a worker is permanent.
+        Overwriting an existing destination needs overwrite=true.
         Project submission transfers the .blend bundle to workers and verifies its SHA-256
         before frame dispatch. Outputs are collected into the coordinator workspace.
         """
@@ -100,6 +110,14 @@ def _register_farm_tools() -> None:
             if operation == "retry_failed":
                 frames = farm.retry_failed_frames(job_id)
                 return {"success": True, "job_id": job_id, "requeued_frames": frames}
+            if operation == "transfer":
+                from blender_mcp.utils.farm_transfer import transfer
+
+                return await transfer(farm, source, destination, mode=mode, overwrite=overwrite)
+            if operation == "cleanup":
+                from blender_mcp.utils.farm_transfer import cleanup
+
+                return await cleanup(farm, list(worker_ids or []), path)
             if operation == "missing_frames":
                 return {"success": True, "job_id": job_id, "frames": farm.store.get_missing_frames(job_id)}
             if operation == "outputs":
@@ -127,6 +145,8 @@ def _register_farm_tools() -> None:
                     "retry_failed",
                     "missing_frames",
                     "outputs",
+                    "transfer",
+                    "cleanup",
                 ],
             }
         except Exception as exc:

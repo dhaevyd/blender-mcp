@@ -11,6 +11,7 @@ import io
 import json
 import os
 import re
+import shutil
 import zipfile
 from pathlib import Path
 from typing import Any
@@ -18,8 +19,8 @@ from typing import Any
 from blender_mcp.utils.farm_workers import gpu_inventory_stats, worker_identity
 from blender_mcp.utils.gpu_render import build_gpu_setup_snippet, parse_render_device
 
-MAX_PROJECT_BUNDLE_BYTES = 64 * 1024 * 1024
-MAX_EXTRACTED_PROJECT_BYTES = 512 * 1024 * 1024
+MAX_PROJECT_BUNDLE_BYTES = 512 * 1024 * 1024
+MAX_EXTRACTED_PROJECT_BYTES = 2048 * 1024 * 1024
 
 
 def resolve_workspace_path(workspace: str | Path, requested_path: str) -> Path:
@@ -67,7 +68,7 @@ def _extract_project_bundle(workspace: Path, project_id: str, bundle_b64: str, e
     except (ValueError, binascii.Error) as exc:
         raise ValueError("project bundle must be valid base64") from exc
     if len(bundle) > MAX_PROJECT_BUNDLE_BYTES:
-        raise ValueError("project bundle exceeds 64 MiB limit")
+        raise ValueError("project bundle exceeds 512 MiB limit")
     actual_sha256 = hashlib.sha256(bundle).hexdigest()
     if not hmac.compare_digest(actual_sha256, expected_sha256.lower()):
         raise ValueError("project bundle SHA-256 mismatch")
@@ -136,6 +137,9 @@ def _register_farm_worker_tools() -> None:
         gpu_vendor: str = "",
         log_level: str = "",
         log_limit: int = 100,
+        content_base64: str = "",
+        overwrite: bool = False,
+        recursive: bool = False,
     ) -> dict[str, Any]:
         """Worker identity, secure project sync/validation, frame rendering and artifact transfer."""
         workspace = Path(os.environ.get("BLENDER_WORKSPACE", "/workspace")).resolve()
@@ -256,11 +260,57 @@ def _register_farm_worker_tools() -> None:
                     return {"success": False, "error": "output file not found"}
                 size = path.stat().st_size
                 if size > MAX_PROJECT_BUNDLE_BYTES:
-                    return {"success": False, "error": "output file exceeds 64 MiB transfer limit"}
+                    return {"success": False, "error": "output file exceeds 512 MiB transfer limit"}
                 data = path.read_bytes()
                 return {"success": True, "file_path": str(path.relative_to(workspace)), "size_bytes": size, "sha256": hashlib.sha256(data).hexdigest(), "content_base64": base64.b64encode(data).decode("ascii")}
 
-            return {"success": False, "error": f"unknown operation: {operation}", "available_operations": ["identity", "logs", "sync_project", "validate_project", "list_frames", "render_frame", "collect_output"]}
+            if operation == "files_list":
+                root = resolve_workspace_path(workspace, file_path or ".")
+                if not root.exists():
+                    return {"success": False, "error": "path not found"}
+                if root.is_file():
+                    found = [root]
+                else:
+                    found = [p for p in root.rglob("*") if p.is_file() and not p.is_symlink()]
+                files = [{"path": p.relative_to(workspace).as_posix(), "size_bytes": p.stat().st_size} for p in sorted(found)]
+                return {"success": True, "path": root.relative_to(workspace).as_posix(), "is_dir": root.is_dir(), "files": files}
+
+            if operation == "files_write":
+                target = resolve_workspace_path(workspace, file_path)
+                if target == workspace:
+                    return {"success": False, "error": "refusing to write over the workspace root"}
+                if target.exists() and not overwrite:
+                    return {"success": False, "error": "destination already exists"}
+                try:
+                    data = base64.b64decode(content_base64, validate=True)
+                except (ValueError, binascii.Error):
+                    return {"success": False, "error": "content must be valid base64"}
+                if len(data) > MAX_PROJECT_BUNDLE_BYTES:
+                    return {"success": False, "error": "file exceeds 512 MiB transfer limit"}
+                digest = hashlib.sha256(data).hexdigest()
+                if not hmac.compare_digest(digest, bundle_sha256.lower()):
+                    return {"success": False, "error": "file SHA-256 mismatch on worker"}
+                target.parent.mkdir(parents=True, exist_ok=True)
+                partial = target.with_name(target.name + ".part")
+                partial.write_bytes(data)
+                os.replace(partial, target)
+                return {"success": True, "file_path": target.relative_to(workspace).as_posix(), "size_bytes": len(data), "sha256": digest}
+
+            if operation == "files_delete":
+                target = resolve_workspace_path(workspace, file_path)
+                if target == workspace:
+                    return {"success": False, "error": "refusing to delete the workspace root"}
+                if target.is_symlink() or target.is_file():
+                    target.unlink()
+                elif target.is_dir():
+                    if not recursive:
+                        return {"success": False, "error": "folder delete needs recursive=true"}
+                    shutil.rmtree(target)
+                else:
+                    return {"success": False, "error": "path not found"}
+                return {"success": True, "file_path": file_path}
+
+            return {"success": False, "error": f"unknown operation: {operation}", "available_operations": ["identity", "logs", "sync_project", "validate_project", "list_frames", "render_frame", "collect_output", "files_list", "files_write", "files_delete"]}
         except Exception as exc:
             return {"success": False, "error": str(exc)}
 
