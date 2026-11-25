@@ -27,6 +27,7 @@ from blender_mcp.utils.projects import (
     list_projects,
     list_trash,
     move_to_trash,
+    move_workspace_entry,
     open_asset,
     open_workspace_file,
     restore_from_trash,
@@ -960,6 +961,66 @@ async def worker_logs_get(request: Request):
     )
 
 
+MAX_BULK_GALLERY_ITEMS = 500
+
+
+def _bulk_paths(body: dict | None) -> list[str] | None:
+    """Validate a ``paths`` list for the bulk endpoints; None means reject the request."""
+    paths = body.get("paths") if body else None
+    if not isinstance(paths, list) or not paths or len(paths) > MAX_BULK_GALLERY_ITEMS:
+        return None
+    if not all(isinstance(item, str) and item for item in paths):
+        return None
+    return list(dict.fromkeys(paths))
+
+
+async def gallery_bulk_delete(request: Request):
+    """Soft-delete several workspace entries; each one reports its own outcome."""
+    body = await _json_body(request)
+    paths = _bulk_paths(body)
+    if paths is None:
+        return JSONResponse({"error": "A list of workspace paths is required."}, status_code=400)
+    results = []
+    for path in paths:
+        try:
+            await asyncio.to_thread(move_to_trash, None, path)
+            results.append({"path": path, "ok": True})
+        except TrashRefused:
+            results.append({"path": path, "ok": False, "error": "This item cannot be deleted."})
+        except FileNotFoundError:
+            results.append({"path": path, "ok": True, "already_gone": True})
+        except ValueError:
+            results.append({"path": path, "ok": False, "error": "Invalid workspace path."})
+        except OSError:
+            results.append({"path": path, "ok": False, "error": "Could not delete this item."})
+    return JSONResponse({"results": results})
+
+
+async def gallery_bulk_move(request: Request):
+    """Move several workspace entries into one folder; each one reports its own outcome."""
+    body = await _json_body(request)
+    paths = _bulk_paths(body)
+    destination = body.get("destination", "") if body else None
+    if paths is None or not isinstance(destination, str):
+        return JSONResponse({"error": "A list of paths and a destination folder are required."}, status_code=400)
+    results = []
+    for path in paths:
+        try:
+            moved = await asyncio.to_thread(move_workspace_entry, None, path, destination)
+            results.append({"path": path, "ok": True, "new_path": moved["new_path"]})
+        except FileExistsError:
+            results.append({"path": path, "ok": False, "error": "An item with that name already exists there."})
+        except TrashRefused as exc:
+            results.append({"path": path, "ok": False, "error": str(exc)})
+        except FileNotFoundError:
+            results.append({"path": path, "ok": False, "error": "Item or destination folder not found."})
+        except ValueError:
+            results.append({"path": path, "ok": False, "error": "Invalid workspace path."})
+        except OSError:
+            results.append({"path": path, "ok": False, "error": "Could not move this item."})
+    return JSONResponse({"results": results})
+
+
 def register_gallery_routes(app):
     app.router.routes.extend(
         [
@@ -986,6 +1047,8 @@ def register_gallery_routes(app):
             Route("/api/v1/gallery/browse", browse_get, methods=["GET"]),
             Route("/api/v1/gallery/search", search_get, methods=["GET"]),
             Route("/api/v1/gallery/delete", gallery_delete, methods=["POST"]),
+            Route("/api/v1/gallery/bulk-delete", gallery_bulk_delete, methods=["POST"]),
+            Route("/api/v1/gallery/bulk-move", gallery_bulk_move, methods=["POST"]),
             Route("/api/v1/gallery/trash", gallery_trash, methods=["GET"]),
             Route("/api/v1/gallery/trash/delete", gallery_trash_delete, methods=["POST"]),
             Route("/api/v1/gallery/restore", gallery_restore, methods=["POST"]),

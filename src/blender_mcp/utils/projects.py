@@ -1104,3 +1104,49 @@ def purge_trash(workspace: str | Path | None = None, older_than_days: float | No
             errors += 1  # vanished between listing and removal
     result.update(removed_entries=removed, kept_entries=kept, errors=errors, bytes_freed=freed)
     return result
+
+
+def move_workspace_entry(workspace: str | Path | None, rel_path: str, dest_folder: str) -> dict[str, Any]:
+    """Move one workspace file or folder into ``dest_folder`` (``""`` is the workspace root).
+
+    Uses no-follow directory descriptors, the same as delete. Refuses to move a folder into
+    itself, to the folder it is already in, into the trash, or over an existing name.
+
+    Raises:
+        TrashRefused: the source or destination is not a movable workspace path.
+        FileNotFoundError: the item or destination folder does not exist.
+        FileExistsError: an item with the same name already exists at the destination.
+    """
+    base = _trash_base(workspace)
+    parts = _trash_workspace_parts(rel_path)
+    dest_parts = _trash_workspace_parts(dest_folder) if dest_folder else ()
+    info = _entry_stat(base, parts)
+    if info is None:
+        raise FileNotFoundError("workspace entry not found")
+    if not (stat.S_ISREG(info.st_mode) or stat.S_ISDIR(info.st_mode)):
+        raise TrashRefused("only files and folders can be moved")
+    if dest_parts:
+        dinfo = _entry_stat(base, dest_parts)
+        if dinfo is None or not stat.S_ISDIR(dinfo.st_mode):
+            raise FileNotFoundError("destination folder not found")
+    if dest_parts == parts[:-1]:
+        raise TrashRefused("that item is already in this folder")
+    if dest_parts[: len(parts)] == parts:
+        raise TrashRefused("a folder cannot be moved into itself")
+    new_parts = dest_parts + (parts[-1],)
+    if _entry_stat(base, new_parts) is not None:
+        raise FileExistsError("an item with that name already exists there")
+
+    src_fd = _open_browser_directory(parts[:-1], base)
+    try:
+        dst_fd = _open_browser_directory(dest_parts, base)
+        try:
+            os.rename(parts[-1], new_parts[-1], src_dir_fd=src_fd, dst_dir_fd=dst_fd)
+        finally:
+            os.close(dst_fd)
+    finally:
+        os.close(src_fd)
+
+    original = "/".join(parts)
+    _forget_gallery_paths(base, original)
+    return {"original_path": original, "new_path": "/".join(new_parts), "name": parts[-1]}

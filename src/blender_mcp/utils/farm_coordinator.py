@@ -197,7 +197,7 @@ class BlenderFarmCoordinator:
                             raise ValueError("project ZIP contains an unsafe path")
                         if not member.is_dir():
                             expanded += member.file_size
-                            if expanded > 512 * 1024 * 1024:
+                            if expanded > 2048 * 1024 * 1024:
                                 raise ValueError("expanded project ZIP exceeds 512 MiB")
                             if path.suffix.lower() == ".blend":
                                 blend_files.append(path)
@@ -205,8 +205,8 @@ class BlenderFarmCoordinator:
                         raise ValueError("project ZIP must contain exactly one .blend file")
             except zipfile.BadZipFile as exc:
                 raise ValueError("project_path ZIP is invalid") from exc
-        if len(bundle) > 64 * 1024 * 1024:
-            raise ValueError("compressed project bundle exceeds 64 MiB worker transfer limit")
+        if len(bundle) > 512 * 1024 * 1024:
+            raise ValueError("compressed project bundle exceeds 512 MiB worker transfer limit")
         if (frame_end - frame_start + 1) > 1_000_000:
             raise ValueError("frame range exceeds the 1,000,000-frame safety limit")
         chosen_ids = worker_ids or list(self.workers)

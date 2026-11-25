@@ -2,7 +2,7 @@
 
 FastMCP builds its streamable-HTTP session manager without a body limit, so the
 MCP SDK's ``RequestBodyLimitMiddleware`` answers ``413 Request Entity Too Large``
-for any POST over 4 MiB. Farm project bundles (up to 64 MiB, base64-encoded in the
+for any POST over 4 MiB. Farm project bundles (up to 512 MiB, base64-encoded in the
 JSON-RPC body) and large scripts need more room. This module subclasses the
 session manager and rebuilds that middleware with an explicit limit.
 """
@@ -16,7 +16,7 @@ from mcp.server.transport_security import RequestBodyLimitMiddleware
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_LIMIT_BYTES = 128 * 1024 * 1024
+DEFAULT_LIMIT_BYTES = 1024 * 1024 * 1024
 _ENV = "BLENDER_MCP_MAX_REQUEST_BODY_MIB"
 
 

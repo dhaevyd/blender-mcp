@@ -17,10 +17,17 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { type KeyboardEvent as ReactKeyboardEvent, useEffect, useRef, useState } from "react";
+import {
+  type DragEvent as ReactDragEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { dashboardAuthHeaders, getDashboardKey } from "../api/dashboardAuth";
 import StudioWorkers from "./studio-workers";
 import "./studio-gallery-browser.css";
+import "./studio-gallery-bulk.css";
 
 type WorkspaceEntry = {
   name: string;
@@ -216,6 +223,10 @@ type TrashEntry = {
 };
 
 /** The undo toast: one soft-deleted item, restorable until the toast expires. */
+type BulkResult = { path: string; ok: boolean; error?: string; already_gone?: boolean };
+
+const GALLERY_DRAG_TYPE = "application/x-gallery-paths";
+
 type GalleryToast = {
   /** Identity of this toast, so a late timer cannot dismiss a newer one. */
   key: number;
@@ -286,6 +297,14 @@ export default function StudioScreens({
   const [deleteTarget, setDeleteTarget] = useState<WorkspaceEntry | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteError, setDeleteError] = useState("");
+  // Multi-select: checked paths, the last row touched (for shift-click ranges), and bulk dialogs.
+  const [checked, setChecked] = useState<Set<string>>(() => new Set());
+  const checkAnchor = useRef<string | null>(null);
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [bulkMoveOpen, setBulkMoveOpen] = useState(false);
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [bulkError, setBulkError] = useState("");
+  const [dropTarget, setDropTarget] = useState<string | null>(null);
   const [toast, setToast] = useState<GalleryToast | null>(null);
   const [undoBusy, setUndoBusy] = useState(false);
   const [trashOpen, setTrashOpen] = useState(false);
@@ -719,6 +738,8 @@ export default function StudioScreens({
     closePreview();
     setSearch("");
     setOpenNotice("");
+    setChecked(new Set());
+    checkAnchor.current = null;
     setFolder(path);
   }
 
@@ -749,6 +770,155 @@ export default function StudioScreens({
       undoUsed: false,
       error: "",
     });
+  }
+
+  /** Ctrl/Cmd or Shift click, and the checkbox, all toggle selection; Shift extends a range. */
+  function toggleChecked(entry: WorkspaceEntry, modifiers?: { shiftKey: boolean }) {
+    const anchor = checkAnchor.current;
+    setChecked((current) => {
+      const next = new Set(current);
+      const from = anchor ? visible.findIndex((row) => row.path === anchor) : -1;
+      const to = visible.findIndex((row) => row.path === entry.path);
+      if (modifiers?.shiftKey && from >= 0 && to >= 0) {
+        for (const row of visible.slice(Math.min(from, to), Math.max(from, to) + 1)) next.add(row.path);
+      } else if (next.has(entry.path)) {
+        next.delete(entry.path);
+      } else {
+        next.add(entry.path);
+      }
+      return next;
+    });
+    checkAnchor.current = entry.path;
+  }
+
+  function startDrag(event: ReactDragEvent<HTMLElement>, entry: WorkspaceEntry) {
+    const paths = dragPaths(entry);
+    event.dataTransfer.setData(GALLERY_DRAG_TYPE, JSON.stringify(paths));
+    event.dataTransfer.setData("text/plain", paths.join("\n"));
+    event.dataTransfer.effectAllowed = "move";
+  }
+
+  function dragOverFolder(event: ReactDragEvent<HTMLElement>, entry: WorkspaceEntry) {
+    if (!Array.from(event.dataTransfer.types).includes(GALLERY_DRAG_TYPE)) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+    if (dropTarget !== entry.path) setDropTarget(entry.path);
+  }
+
+  function dropOnFolder(event: ReactDragEvent<HTMLElement>, entry: WorkspaceEntry) {
+    if (!Array.from(event.dataTransfer.types).includes(GALLERY_DRAG_TYPE)) return;
+    event.preventDefault();
+    setDropTarget(null);
+    const paths = readDragPaths(event);
+    if (paths.length > 0) void runBulkMove(paths, entry.path);
+  }
+
+  /** Dragging a checked row moves the whole selection; dragging any other row moves just that row. */
+  function dragPaths(entry: WorkspaceEntry): string[] {
+    return checked.has(entry.path) ? Array.from(checked) : [entry.path];
+  }
+
+  function readDragPaths(event: ReactDragEvent<HTMLElement>): string[] {
+    try {
+      const parsed: unknown = JSON.parse(event.dataTransfer.getData(GALLERY_DRAG_TYPE) || "[]");
+      return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === "string") : [];
+    } catch {
+      return [];
+    }
+  }
+
+  function removeEntries(paths: string[]) {
+    const gone = new Set(paths);
+    if (selected && gone.has(selected.path)) closePreview();
+    setEntries((current) => current.filter((row) => !gone.has(row.path)));
+    setChecked((current) => new Set(Array.from(current).filter((path) => !gone.has(path))));
+  }
+
+  function describeCount(count: number): string {
+    return `${count} item${count === 1 ? "" : "s"}`;
+  }
+
+  async function runBulkDelete(paths: string[]) {
+    setBulkBusy(true);
+    setBulkError("");
+    try {
+      const response = await fetch("/api/v1/gallery/bulk-delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...dashboardAuthHeaders() },
+        body: JSON.stringify({ paths }),
+      });
+      if (response.status === 401 || response.status === 403) {
+        setBulkDeleteOpen(false);
+        setError(
+          response.status === 401
+            ? "Coordinator key rejected; reconnect and retry."
+            : "Coordinator refused the request (HTTP 403); reconnect and retry.",
+        );
+        return;
+      }
+      if (!response.ok) {
+        setBulkError(`Could not move these to the trash (HTTP ${response.status}). Try again.`);
+        return;
+      }
+      const results = ((await response.json()) as { results?: BulkResult[] }).results ?? [];
+      const moved = results.filter((row) => row.ok).map((row) => row.path);
+      const failed = results.filter((row) => !row.ok);
+      removeEntries(moved);
+      setBulkDeleteOpen(false);
+      if (failed.length > 0) {
+        setChecked(new Set(failed.map((row) => row.path)));
+        setBulkError(`${describeCount(failed.length)} could not be deleted. ${failed[0].error ?? ""}`.trim());
+      }
+      if (moved.length > 0) showToast(`${describeCount(moved.length)} moved to trash`, null);
+    } catch {
+      setBulkError("Could not reach the coordinator. Check the connection, then try again.");
+    } finally {
+      setBulkBusy(false);
+    }
+  }
+
+  async function runBulkMove(paths: string[], destination: string) {
+    // Dropping a folder onto itself or into its own subtree is refused by the server; drop it here too.
+    const safe = paths.filter((path) => path !== destination && !destination.startsWith(`${path}/`));
+    if (safe.length === 0) return;
+    setBulkBusy(true);
+    setBulkError("");
+    try {
+      const response = await fetch("/api/v1/gallery/bulk-move", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...dashboardAuthHeaders() },
+        body: JSON.stringify({ paths: safe, destination }),
+      });
+      if (response.status === 401 || response.status === 403) {
+        setBulkMoveOpen(false);
+        setError(
+          response.status === 401
+            ? "Coordinator key rejected; reconnect and retry."
+            : "Coordinator refused the request (HTTP 403); reconnect and retry.",
+        );
+        return;
+      }
+      if (!response.ok) {
+        setBulkError(`Could not move these items (HTTP ${response.status}). Try again.`);
+        return;
+      }
+      const results = ((await response.json()) as { results?: BulkResult[] }).results ?? [];
+      const moved = results.filter((row) => row.ok).map((row) => row.path);
+      const failed = results.filter((row) => !row.ok);
+      removeEntries(moved);
+      setBulkMoveOpen(false);
+      if (failed.length > 0) {
+        setChecked(new Set(failed.map((row) => row.path)));
+        setBulkError(`${describeCount(failed.length)} could not be moved. ${failed[0].error ?? ""}`.trim());
+      }
+      if (moved.length > 0) {
+        showToast(`${describeCount(moved.length)} moved to ${destination || "the workspace root"}`, null);
+      }
+    } catch {
+      setBulkError("Could not reach the coordinator. Check the connection, then try again.");
+    } finally {
+      setBulkBusy(false);
+    }
   }
 
   function openDeleteConfirm(entry: WorkspaceEntry, trigger: HTMLElement | null) {
@@ -1109,6 +1279,30 @@ export default function StudioScreens({
             </div>
           </div>
           <div className="nr-card gallery-browser-results">
+            {checked.size > 0 && (
+              <div className="gallery-bulk-bar" role="toolbar" aria-label="Selected items">
+                <span className="gallery-bulk-count" aria-live="polite">
+                  {checked.size} selected
+                </span>
+                <button type="button" className="gallery-bulk-button" onClick={() => setChecked(new Set(visible.map((row) => row.path)))} disabled={bulkBusy}>
+                  Select all
+                </button>
+                <button type="button" className="gallery-bulk-button" onClick={() => setBulkMoveOpen(true)} disabled={bulkBusy}>
+                  Move to…
+                </button>
+                <button type="button" className="gallery-bulk-button is-danger" onClick={() => setBulkDeleteOpen(true)} disabled={bulkBusy}>
+                  Delete
+                </button>
+                <button type="button" className="gallery-bulk-button is-ghost" onClick={() => setChecked(new Set())} disabled={bulkBusy}>
+                  Clear
+                </button>
+                {bulkError && (
+                  <span className="gallery-bulk-error" role="alert">
+                    {bulkError}
+                  </span>
+                )}
+              </div>
+            )}
             {openNotice && (
               <p className="studio-error page-note is-bad" role="alert">
                 {openNotice}
@@ -1138,12 +1332,35 @@ export default function StudioScreens({
                 tabIndex={-1}
               >
                 {visible.map((entry) => (
-                  <div className="gallery-browser-tilewrap" key={entry.path}>
+                  <div
+                    className={`gallery-browser-tilewrap${dropTarget === entry.path ? " is-drop-target" : ""}${checked.has(entry.path) ? " is-checked" : ""}`}
+                    key={entry.path}
+                    onDragOver={entry.type === "folder" ? (event) => dragOverFolder(event, entry) : undefined}
+                    onDragLeave={entry.type === "folder" ? () => setDropTarget(null) : undefined}
+                    onDrop={entry.type === "folder" ? (event) => dropOnFolder(event, entry) : undefined}
+                  >
+                    <input
+                      type="checkbox"
+                      className="gallery-browser-check"
+                      checked={checked.has(entry.path)}
+                      aria-label={`Select ${entry.name}`}
+                      onChange={() => undefined}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        toggleChecked(entry, event);
+                      }}
+                    />
                     <button
                       className="gallery-browser-tile"
                       type="button"
                       title={entry.name}
+                      draggable
+                      onDragStart={(event) => startDrag(event, entry)}
                       onClick={(event) => {
+                        if (event.ctrlKey || event.metaKey || event.shiftKey) {
+                          toggleChecked(entry, event);
+                          return;
+                        }
                         if (entry.type === "folder") navigate(entry.path);
                         else {
                           previewReturn.current = event.currentTarget;
@@ -1195,11 +1412,34 @@ export default function StudioScreens({
                 {visible.map((entry) => (
                   // The delete control is a sibling, not a child: a button inside a button is invalid
                   // markup, and this way the row keeps opening the item on its own.
-                  <div className="gallery-browser-rowwrap" key={entry.path}>
+                  <div
+                    className={`gallery-browser-rowwrap${dropTarget === entry.path ? " is-drop-target" : ""}${checked.has(entry.path) ? " is-checked" : ""}`}
+                    key={entry.path}
+                    onDragOver={entry.type === "folder" ? (event) => dragOverFolder(event, entry) : undefined}
+                    onDragLeave={entry.type === "folder" ? () => setDropTarget(null) : undefined}
+                    onDrop={entry.type === "folder" ? (event) => dropOnFolder(event, entry) : undefined}
+                  >
+                    <input
+                      type="checkbox"
+                      className="gallery-browser-check"
+                      checked={checked.has(entry.path)}
+                      aria-label={`Select ${entry.name}`}
+                      onChange={() => undefined}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        toggleChecked(entry, event);
+                      }}
+                    />
                     <button
                       className="gallery-browser-row page-table-row"
                       type="button"
+                      draggable
+                      onDragStart={(event) => startDrag(event, entry)}
                       onClick={(event) => {
+                        if (event.ctrlKey || event.metaKey || event.shiftKey) {
+                          toggleChecked(entry, event);
+                          return;
+                        }
                         if (entry.type === "folder") navigate(entry.path);
                         else {
                           previewReturn.current = event.currentTarget;
@@ -1494,6 +1734,87 @@ export default function StudioScreens({
                 disabled={Boolean(trashActionId)}
               >
                 Close
+              </button>
+            </footer>
+          </div>
+        </div>
+      )}
+      {screen === "Gallery" && bulkDeleteOpen && (
+        <div
+          className="gallery-browser-overlay"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget && !bulkBusy) setBulkDeleteOpen(false);
+          }}
+        >
+          <div className="gallery-confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="gallery-bulk-delete-title">
+            <div>
+              <span className="panel-kicker">MOVE TO TRASH</span>
+              <h2 id="gallery-bulk-delete-title">Delete {describeCount(checked.size)}?</h2>
+            </div>
+            <p>
+              Everything selected moves to the workspace trash. Nothing is erased. You can restore items from the Recycle bin until
+              the trash is emptied.
+            </p>
+            <footer>
+              <button type="button" className="gallery-confirm-cancel" onClick={() => setBulkDeleteOpen(false)} disabled={bulkBusy}>
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="gallery-confirm-delete"
+                onClick={() => void runBulkDelete(Array.from(checked))}
+                disabled={bulkBusy}
+                aria-busy={bulkBusy}
+              >
+                {bulkBusy ? "Moving…" : "Move to trash"}
+              </button>
+            </footer>
+          </div>
+        </div>
+      )}
+      {screen === "Gallery" && bulkMoveOpen && (
+        <div
+          className="gallery-browser-overlay"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget && !bulkBusy) setBulkMoveOpen(false);
+          }}
+        >
+          <div className="gallery-confirm-dialog gallery-move-dialog" role="dialog" aria-modal="true" aria-labelledby="gallery-bulk-move-title">
+            <div>
+              <span className="panel-kicker">MOVE</span>
+              <h2 id="gallery-bulk-move-title">Move {describeCount(checked.size)} to…</h2>
+            </div>
+            <div className="gallery-move-options" role="group" aria-label="Destination folders">
+              {folder !== "" && (
+                <button type="button" className="gallery-move-option" onClick={() => void runBulkMove(Array.from(checked), parentPath(folder))} disabled={bulkBusy}>
+                  ↑ Up one level
+                </button>
+              )}
+              <button type="button" className="gallery-move-option" onClick={() => void runBulkMove(Array.from(checked), "")} disabled={bulkBusy}>
+                Workspace root
+              </button>
+              {entries
+                .filter((row) => row.type === "folder" && !checked.has(row.path))
+                .map((row) => (
+                  <button
+                    key={row.path}
+                    type="button"
+                    className="gallery-move-option"
+                    onClick={() => void runBulkMove(Array.from(checked), row.path)}
+                    disabled={bulkBusy}
+                  >
+                    {row.name}
+                  </button>
+                ))}
+            </div>
+            {bulkError && (
+              <p className="studio-error" role="alert">
+                {bulkError}
+              </p>
+            )}
+            <footer>
+              <button type="button" className="gallery-confirm-cancel" onClick={() => setBulkMoveOpen(false)} disabled={bulkBusy}>
+                Cancel
               </button>
             </footer>
           </div>
