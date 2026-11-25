@@ -12,6 +12,7 @@ from ..compat import *
 logger = logging.getLogger(__name__)
 from ..decorators import blender_operation
 from ..utils.blender_executor import get_blender_executor
+from ..utils.blender_script_compat import ACTION_FCURVE_HELPERS
 
 # Initialize the executor with default Blender executable
 _executor = get_blender_executor()
@@ -514,6 +515,7 @@ async def bake_cloth_simulation(
     use_shape_keys = kwargs.get("use_shape_keys", False)
 
     script = f"""
+{ACTION_FCURVE_HELPERS}
 
 def bake_cloth():
     obj = bpy.data.objects.get('{object_name}')
@@ -536,8 +538,8 @@ def bake_cloth():
 
     # Clear existing keyframes if requested
     if {str(clear_previous).lower()}:
-        for fcurve in obj.data.shape_keys.animation_data.action.fcurves if obj.data.shape_keys and obj.data.shape_keys.animation_data and obj.data.shape_keys.animation_data.action else []:
-            obj.data.shape_keys.animation_data.action.fcurves.remove(fcurve)
+        for fcurve in (_all_fcurves(obj.data.shape_keys.animation_data) if obj.data.shape_keys and obj.data.shape_keys.animation_data else []):
+            _remove_fcurve(obj.data.shape_keys.animation_data, fcurve)
 
     # Set up bake settings
     settings = cloth_mod.settings

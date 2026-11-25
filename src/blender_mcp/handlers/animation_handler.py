@@ -6,6 +6,7 @@ Provides functions for creating keyframes and basic animations.
 
 from ..compat import *
 from ..decorators import blender_operation
+from ..utils.blender_script_compat import ACTION_FCURVE_HELPERS
 from ..utils.blender_executor import get_blender_executor
 
 _executor = get_blender_executor()
@@ -515,6 +516,7 @@ async def set_interpolation(object_name: str, interpolation: str = "BEZIER", dat
     data_path_filter = f'and fc.data_path == "{data_path}"' if data_path else ""
     script = f"""
 import bpy
+{ACTION_FCURVE_HELPERS}
 
 obj = bpy.data.objects.get("{object_name}")
 if not obj:
@@ -523,7 +525,7 @@ if not obj.animation_data or not obj.animation_data.action:
     raise ValueError(f"Object '{object_name}' has no animation data")
 
 count = 0
-for fc in obj.animation_data.action.fcurves:
+for fc in _all_fcurves(obj.animation_data):
     if True {data_path_filter}:
         for kp in fc.keyframe_points:
             kp.interpolation = '{interpolation}'
@@ -540,6 +542,7 @@ async def set_easing(object_name: str, easing: str = "AUTO") -> str:
     """Set keyframe easing type (AUTO, EASE_IN, EASE_OUT, EASE_IN_OUT)."""
     script = f"""
 import bpy
+{ACTION_FCURVE_HELPERS}
 
 obj = bpy.data.objects.get("{object_name}")
 if not obj:
@@ -548,7 +551,7 @@ if not obj.animation_data or not obj.animation_data.action:
     raise ValueError(f"Object '{object_name}' has no animation data")
 
 count = 0
-for fc in obj.animation_data.action.fcurves:
+for fc in _all_fcurves(obj.animation_data):
     for kp in fc.keyframe_points:
         kp.easing = '{easing}'
         count += 1

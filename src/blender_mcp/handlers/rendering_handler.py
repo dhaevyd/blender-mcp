@@ -94,8 +94,9 @@ def configure_render_engine():
 
     # Set the render engine (Blender 4.2 renamed EEVEE to BLENDER_EEVEE_NEXT)
     _engine = '{engine}'
-    if _engine == 'BLENDER_EEVEE' and bpy.app.version >= (4, 2, 0):
-        _engine = 'BLENDER_EEVEE_NEXT'
+    if _engine == 'BLENDER_EEVEE':
+        _ids = [e.identifier for e in bpy.types.RenderSettings.bl_rna.properties['engine'].enum_items]
+        _engine = 'BLENDER_EEVEE_NEXT' if 'BLENDER_EEVEE_NEXT' in _ids else 'BLENDER_EEVEE'
     scene.render.engine = _engine
 
     # Common settings (preserve resolution unless overridden via kwargs)
