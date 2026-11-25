@@ -926,10 +926,45 @@ async def farm_access_get(request: Request):
     return JSONResponse({"role": getattr(request.state, "studio_role", "admin")})
 
 
+async def worker_logs_get(request: Request):
+    """Recent log lines from one enrolled worker's in-memory buffer; behind bearer auth via /api."""
+    from blender_mcp.tools.farm_tools import _coordinator
+
+    farm = _coordinator()
+    wid = request.path_params["worker_id"]
+    if not farm.store.get_managed_worker(wid):
+        return JSONResponse({"success": False, "error": "Worker not found."}, status_code=404)
+    level = request.query_params.get("level", "").strip().upper()
+    if level not in {"", "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}:
+        return JSONResponse({"success": False, "error": "Unknown log level."}, status_code=400)
+    try:
+        limit = max(1, min(int(request.query_params.get("limit", "100")), 500))
+    except ValueError:
+        return JSONResponse({"success": False, "error": "limit must be a whole number."}, status_code=400)
+    try:
+        result = await farm._client(wid).call_tool(
+            "blender_farm_worker",
+            {"operation": "logs", "log_level": level, "log_limit": limit},
+            timeout=15,
+        )
+    except Exception:
+        return JSONResponse(
+            {"success": False, "error": "Worker did not return logs. It may be offline."},
+            status_code=502,
+        )
+    if not isinstance(result, dict) or result.get("success") is not True:
+        return JSONResponse({"success": False, "error": "Worker returned no log data."}, status_code=502)
+    return JSONResponse(
+        {"success": True, "worker_id": wid, "count": result.get("count", 0), "logs": result.get("logs", [])},
+        headers={"Cache-Control": "private, no-store"},
+    )
+
+
 def register_gallery_routes(app):
     app.router.routes.extend(
         [
             Route("/api/v1/workers/enroll", enroll_worker, methods=["POST"]),
+            Route("/api/v1/workers/{worker_id}/logs", worker_logs_get, methods=["GET"]),
             Route("/api/v1/workers/{worker_id}/test", worker_test, methods=["POST"]),
             Route("/api/v1/workers/{worker_id}", worker_patch, methods=["PATCH"]),
             Route("/api/v1/workers/{worker_id}", worker_delete, methods=["DELETE"]),

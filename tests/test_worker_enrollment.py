@@ -180,7 +180,7 @@ def test_enroll_auto_generates_single_profile_compose_and_host_detector(monkeypa
     compose = yaml.safe_load(payload["compose_yaml"])
     assert compose["name"] == "auto-gpu"
     services = compose["services"]
-    assert list(services) == ["blender-worker-nvidia", "blender-worker-amd", "blender-worker-intel"]
+    assert list(services) == ["blender-worker-nvidia", "blender-worker-amd", "blender-worker-intel", "blender-worker-cpu"]
     for vendor, service in services.items():
         assert service["profiles"] == [vendor.split("-")[-1]]
         assert service["container_name"] == "blender_mcp-worker"

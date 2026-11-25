@@ -568,9 +568,15 @@ def test_post_render_check_is_noop_for_cycles(capsys):
 # ---------------------------------------------------------------------------
 
 
-def test_require_gpu_defaults_to_true_and_accepts_explicit_false():
+def test_require_gpu_follows_host_when_unset_and_accepts_explicit_false(monkeypatch):
+    import blender_mcp.utils.host_capabilities as host
+
+    monkeypatch.setattr(host, "host_gpu_present", lambda: True)
     assert require_gpu({}) is True
     assert require_gpu({"MCP_RENDER_REQUIRE_GPU": ""}) is True
+
+    monkeypatch.setattr(host, "host_gpu_present", lambda: False)
+    assert require_gpu({}) is False
     assert require_gpu({"MCP_RENDER_REQUIRE_GPU": "true"}) is True
     assert require_gpu({"MCP_RENDER_REQUIRE_GPU": "yes"}) is True
     assert require_gpu({"MCP_RENDER_REQUIRE_GPU": "garbage"}) is True  # typo must not relax strictness

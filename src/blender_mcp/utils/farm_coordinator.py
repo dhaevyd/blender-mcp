@@ -14,8 +14,30 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+import logging
+
 from blender_mcp.utils.farm_state import FarmJobStore
 from blender_mcp.utils.farm_workers import MCPWorkerClient, WorkerConfig
+
+logger = logging.getLogger(__name__)
+
+
+def explain_failure(error: str, worker_id: str = "") -> str:
+    """Turn a raw worker or network error into a sentence an operator can act on."""
+    text = (error or "").strip()
+    lowered = text.lower()
+    where = f" on worker {worker_id}" if worker_id else ""
+    if "timed out" in lowered or "timeout" in lowered:
+        return f"The render{where} ran past its time limit. Check the scene's complexity, or raise the timeout."
+    if "connection" in lowered or "refused" in lowered or "unreachable" in lowered or "name or service" in lowered:
+        return f"Could not reach the worker{where}. Check that it is online and its URL is correct."
+    if "output file not found" in lowered or "no output_path" in lowered:
+        return f"Blender finished but did not write the image{where}. Check the output directory and render settings."
+    if "unauthorized" in lowered or "401" in lowered or "403" in lowered:
+        return f"The worker{where} rejected the API key. Re-enrol it or update its key."
+    if "out of memory" in lowered or "cuda_error_out_of_memory" in lowered or "vram" in lowered:
+        return f"The GPU{where} ran out of memory. Lower the render resolution or sample count, or use a GPU with more VRAM."
+    return f"The render failed{where}: {text or 'no details were reported'}."
 
 
 def _redact_worker_payload(value: Any, secret: str) -> Any:
@@ -541,6 +563,13 @@ class BlenderFarmCoordinator:
                 except asyncio.CancelledError:
                     raise
                 except Exception as exc:
+                    logger.warning(
+                        "Job %s frame %s failed. %s Raw error: %s",
+                        job_id,
+                        frame,
+                        explain_failure(str(exc), worker_id),
+                        exc,
+                    )
                     self.store.finish_frame(job_id, frame, success=False, error=str(exc))
                     break
         return observed_peak_mib or None

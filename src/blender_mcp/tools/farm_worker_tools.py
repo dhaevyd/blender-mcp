@@ -134,12 +134,36 @@ def _register_farm_worker_tools() -> None:
         gpu_index: int = -1,
         gpu_name: str = "",
         gpu_vendor: str = "",
+        log_level: str = "",
+        log_limit: int = 100,
     ) -> dict[str, Any]:
         """Worker identity, secure project sync/validation, frame rendering and artifact transfer."""
         workspace = Path(os.environ.get("BLENDER_WORKSPACE", "/workspace")).resolve()
         try:
             if operation == "identity":
                 return worker_identity()
+
+            if operation == "logs":
+                from blender_mcp.server import get_recent_logs
+
+                limit = max(1, min(int(log_limit or 100), 500))
+                entries = get_recent_logs(level_filter=log_level or None, limit=limit)
+                return {
+                    "success": True,
+                    "worker_id": os.environ.get("BLENDER_FARM_WORKER_ID", ""),
+                    "count": len(entries),
+                    "logs": [
+                        {
+                            "timestamp": entry["timestamp"].isoformat(),
+                            "level": entry["level"],
+                            "name": entry["name"],
+                            "function": entry["function"],
+                            "line": entry["line"],
+                            "message": entry["message"],
+                        }
+                        for entry in entries
+                    ],
+                }
 
             if operation == "sync_project":
                 result = _extract_project_bundle(workspace, project_id, bundle_base64, bundle_sha256)
@@ -236,7 +260,7 @@ def _register_farm_worker_tools() -> None:
                 data = path.read_bytes()
                 return {"success": True, "file_path": str(path.relative_to(workspace)), "size_bytes": size, "sha256": hashlib.sha256(data).hexdigest(), "content_base64": base64.b64encode(data).decode("ascii")}
 
-            return {"success": False, "error": f"unknown operation: {operation}", "available_operations": ["identity", "sync_project", "validate_project", "list_frames", "render_frame", "collect_output"]}
+            return {"success": False, "error": f"unknown operation: {operation}", "available_operations": ["identity", "logs", "sync_project", "validate_project", "list_frames", "render_frame", "collect_output"]}
         except Exception as exc:
             return {"success": False, "error": str(exc)}
 

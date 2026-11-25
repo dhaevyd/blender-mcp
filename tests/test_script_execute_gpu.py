@@ -378,7 +378,7 @@ async def test_error_line_numbers_point_at_the_original_source(monkeypatch):
 @pytest.mark.asyncio
 async def test_error_inside_the_injected_block_is_labelled_as_gpu_setup(monkeypatch):
     """A failure inside the injected block is not blamed on the caller's script."""
-    monkeypatch.delenv("MCP_RENDER_REQUIRE_GPU", raising=False)
+    monkeypatch.setenv("MCP_RENDER_REQUIRE_GPU", "true")
     # Cycles preferences unavailable => the snippet raises from its own code.
     install_executor(monkeypatch, FakeExecutor(bpy_module=make_bpy(FakeScene(), None)))
 
@@ -398,7 +398,7 @@ async def test_error_inside_the_injected_block_is_labelled_as_gpu_setup(monkeypa
 @pytest.mark.asyncio
 async def test_strict_mode_fails_loudly_when_the_gpu_cannot_be_enabled(monkeypatch):
     """Requirement: never a silent CPU render when a GPU exists but fails."""
-    monkeypatch.delenv("MCP_RENDER_REQUIRE_GPU", raising=False)
+    monkeypatch.setenv("MCP_RENDER_REQUIRE_GPU", "true")
     prefs = FakeCyclesPreferences(gpu_devices(refuse_enable=True))
     install_executor(monkeypatch, FakeExecutor(bpy_module=make_bpy(FakeScene(), prefs)))
 

@@ -722,3 +722,37 @@
 .monitor-cpu-fallback-grid small {
   opacity: 0.7;
 }
+/* Live node logs panel (Workers screen). */
+.worker-logs {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--studio-border);
+  border-radius: 10px;
+  background: var(--studio-surface-muted);
+}
+
+.worker-logs-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.worker-logs-body {
+  max-height: 320px;
+  margin: 0;
+  overflow: auto;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--studio-surface-raised);
+  color: var(--studio-text);
+  font: 500 11.5px / 1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.worker-log-line.is-warning { color: #e0a458; }
+.worker-log-line.is-error,
+.worker-log-line.is-critical { color: #f2795f; }

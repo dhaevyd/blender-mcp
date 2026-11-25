@@ -31,6 +31,15 @@ type Enrollment = {
   gpu_vendor?: "auto" | "nvidia" | "amd" | "intel";
 };
 
+type WorkerLogLine = {
+  timestamp: string;
+  level: string;
+  name: string;
+  function: string;
+  line: number;
+  message: string;
+};
+
 const NEW_WORKER_HIGHLIGHT_MS = 1600;
 const CARD_EXIT_MS = 180;
 
@@ -83,7 +92,7 @@ export default function StudioWorkers({
   const [enrollment, setEnrollment] = useState<Enrollment | null>(null);
   const [revealed, setRevealed] = useState(false);
   const [editId, setEditId] = useState("");
-  const [edit, setEdit] = useState({ name: "", workspace: "" });
+  const [edit, setEdit] = useState({ name: "", workspace: "", url: "" });
   const [newWorkerId, setNewWorkerId] = useState("");
   const [setupBannerDismissed, setSetupBannerDismissed] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Worker | null>(null);
@@ -91,6 +100,11 @@ export default function StudioWorkers({
   const [deleteShake, setDeleteShake] = useState(0);
   const [deleteNameCopied, setDeleteNameCopied] = useState(false);
   const [removingId, setRemovingId] = useState("");
+  const [logsWorkerId, setLogsWorkerId] = useState("");
+  const [logLevel, setLogLevel] = useState("");
+  const [logLines, setLogLines] = useState<WorkerLogLine[]>([]);
+  const [logsError, setLogsError] = useState("");
+  const [logsLoading, setLogsLoading] = useState(false);
   // The page is normally controlled by the dashboard; keep a local fallback so
   // the segment still switches when mounted without an onViewChange handler.
   const [fallbackView, setFallbackView] = useState<WorkerView>("roster");
@@ -125,6 +139,34 @@ export default function StudioWorkers({
   useEffect(() => {
     void refresh();
   }, []);
+
+  // Live logs for the one node whose panel is open; polls every 3 s while it stays open.
+  useEffect(() => {
+    if (!logsWorkerId) return;
+    let cancelled = false;
+    const load = async () => {
+      setLogsLoading(true);
+      try {
+        const params = new URLSearchParams({ limit: "200" });
+        if (logLevel) params.set("level", logLevel);
+        const data = await request(`/api/v1/workers/${encodeURIComponent(logsWorkerId)}/logs?${params}`);
+        if (cancelled) return;
+        setLogLines(data.logs ?? []);
+        setLogsError("");
+      } catch (cause) {
+        if (cancelled) return;
+        setLogsError(cause instanceof Error ? cause.message : "Could not load logs.");
+      } finally {
+        if (!cancelled) setLogsLoading(false);
+      }
+    };
+    void load();
+    const timer = window.setInterval(() => void load(), 3000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [logsWorkerId, logLevel]);
 
   function closeEnrollment() {
     setEnrollment(null);
@@ -182,12 +224,17 @@ export default function StudioWorkers({
     setBusy(true);
     setError("");
     try {
+      const urlChanged = edit.url.trim() !== (worker.url ?? "");
       await request(`/api/v1/workers/${encodeURIComponent(worker.worker_id)}`, {
         method: "PATCH",
-        body: JSON.stringify(edit),
+        body: JSON.stringify({ ...edit, url: edit.url.trim() }),
       });
       setEditId("");
-      setNotice("Worker settings saved. Workspace changes may require a connection re-test.");
+      setNotice(
+        urlChanged
+          ? "Worker URL saved. The node is disabled until you test the new connection."
+          : "Worker settings saved. Workspace changes may require a connection re-test.",
+      );
       await refresh();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Could not save worker settings.");
@@ -803,6 +850,18 @@ export default function StudioWorkers({
                             <>
                               <button
                                 type="button"
+                                className="page-btn is-sm is-ghost"
+                                aria-expanded={logsWorkerId === worker.worker_id}
+                                onClick={() => {
+                                  setLogLines([]);
+                                  setLogsError("");
+                                  setLogsWorkerId(logsWorkerId === worker.worker_id ? "" : worker.worker_id);
+                                }}
+                              >
+                                {logsWorkerId === worker.worker_id ? "Hide logs" : "Logs"}
+                              </button>
+                              <button
+                                type="button"
                                 className="page-btn is-sm"
                                 disabled={busy}
                                 onClick={() => void test(worker)}
@@ -817,6 +876,7 @@ export default function StudioWorkers({
                                   setEdit({
                                     name: worker.name ?? "",
                                     workspace: worker.workspace ?? "/workspace",
+                                    url: worker.url ?? "",
                                   });
                                 }}
                               >
@@ -831,6 +891,7 @@ export default function StudioWorkers({
                                 onClick={(event) => openDelete(worker, event.currentTarget)}
                               >
                                 <X size={12} aria-hidden="true" />
+                                Delete
                               </button>
                             </>
                           )}
@@ -853,8 +914,55 @@ export default function StudioWorkers({
                                 onChange={(e) => setEdit({ ...edit, workspace: e.target.value })}
                               />
                             </label>
-                            <p className="page-muted">Workspace changes may require a connection re-test.</p>
+                            <label className="page-field">
+                              MCP URL
+                              <input
+                                className="page-input"
+                                type="url"
+                                placeholder="http://100.x.y.z:10849/mcp"
+                                value={edit.url}
+                                onChange={(e) => setEdit({ ...edit, url: e.target.value })}
+                              />
+                            </label>
+                            <p className="page-muted">
+                              Changing the URL or workspace disables the node until you test the connection again.
+                            </p>
                           </div>
+                        )}
+                        {logsWorkerId === worker.worker_id && (
+                          <section className="worker-logs" aria-label={`Live logs for ${worker.name ?? worker.worker_id}`}>
+                            <div className="worker-logs-head">
+                              <span className="page-kicker">Live node logs{logsLoading ? " · updating" : ""}</span>
+                              <label className="page-field">
+                                Level
+                                <select
+                                  className="page-select"
+                                  value={logLevel}
+                                  onChange={(event) => setLogLevel(event.target.value)}
+                                >
+                                  <option value="">All</option>
+                                  <option value="WARNING">Warnings and up</option>
+                                  <option value="ERROR">Errors only</option>
+                                </select>
+                              </label>
+                            </div>
+                            {logsError && (
+                              <p className="page-note is-bad" role="alert">
+                                {logsError}
+                              </p>
+                            )}
+                            {logLines.length === 0 && !logsError ? (
+                              <p className="page-muted">No log lines yet. Lines appear here as the node works.</p>
+                            ) : (
+                              <pre className="worker-logs-body">
+                                {logLines.map((line, i) => (
+                                  <span className={`worker-log-line is-${line.level.toLowerCase()}`} key={`${line.timestamp}-${i}`}>
+                                    {`${new Date(line.timestamp).toLocaleTimeString()} ${line.level.padEnd(8)} ${line.message}\n`}
+                                  </span>
+                                ))}
+                              </pre>
+                            )}
+                          </section>
                         )}
                         {status === "pending" && (
                           <p className="worker-row-note">

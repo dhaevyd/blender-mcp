@@ -1226,6 +1226,8 @@ export default function StudioDashboard() {
   const [notificationsSaveError, setNotificationsSaveError] = useState(false);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const [eventLog, setEventLog] = useState<NotificationLogEntry[]>(readNotificationLog);
+  // Alert ids the user cleared. An alert leaves this set once its condition clears, so it can fire again later.
+  const [dismissedAlerts, setDismissedAlerts] = useState<Set<string>>(() => new Set());
   // Last state seen per entity. Null until the first snapshot arrives, so history is not replayed.
   const seenJobs = useRef<Map<string, string> | null>(null);
   const seenWorkers = useRef<Map<string, boolean> | null>(null);
@@ -1383,6 +1385,15 @@ export default function StudioDashboard() {
     const timer = window.setInterval(() => void refresh(), cadence * 1000);
     return () => window.clearInterval(timer);
   }, [refresh, cadence]);
+
+  // While a render is running, poll the farm every 3 s so the progress bar moves
+  // between frame completions, regardless of the chosen dashboard cadence.
+  const renderingNow = (farm?.active_jobs ?? []).some((job) => job.status === "running");
+  useEffect(() => {
+    if (!renderingNow) return;
+    const timer = window.setInterval(() => void refresh(), 3000);
+    return () => window.clearInterval(timer);
+  }, [renderingNow, refresh]);
 
   // Monitoring gets its own fast, serialized diagnostics loop. Other screens
   // keep the lighter dashboard cadence; scheduling after each response avoids
@@ -1702,10 +1713,20 @@ export default function StudioDashboard() {
     refresh,
   ]);
 
-  const unreadAlertCount = alerts.filter(
+  const visibleAlerts = alerts.filter((entry) => !dismissedAlerts.has(entry.id));
+  const unreadAlertCount = visibleAlerts.filter(
     (entry) => entry.severity === "critical" || entry.severity === "warning",
   ).length;
-  const hasCriticalAlert = alerts.some((entry) => entry.severity === "critical");
+  const hasCriticalAlert = visibleAlerts.some((entry) => entry.severity === "critical");
+
+  // Forget dismissals for alerts whose condition has cleared, so a repeat failure shows again.
+  useEffect(() => {
+    const live = new Set(alerts.map((entry) => entry.id));
+    setDismissedAlerts((previous) => {
+      const next = new Set([...previous].filter((id) => live.has(id)));
+      return next.size === previous.size ? previous : next;
+    });
+  }, [alerts]);
 
   const openEventLog = () => {
     setNotificationsOpen(false);
@@ -1728,11 +1749,13 @@ export default function StudioDashboard() {
     });
   }, []);
 
-  const clearEvents = useCallback(() => {
+  // Clear wipes the log and toasts, and dismisses every live alert so the bell and feed empty too.
+  const clearEvents = () => {
     setToasts([]);
     setEventLog([]);
     writeNotificationLog([]);
-  }, []);
+    setDismissedAlerts(new Set(alerts.map((entry) => entry.id)));
+  };
 
   const dismissToast = useCallback((id: string) => {
     setToasts((current) => current.filter((toast) => toast.id !== id));
@@ -2093,19 +2116,19 @@ export default function StudioDashboard() {
                     <span>Notifications</span>
                     <span className="studio-notif-head-actions">
                       <span>
-                        {alerts.length} event{alerts.length === 1 ? "" : "s"}
+                        {visibleAlerts.length} event{visibleAlerts.length === 1 ? "" : "s"}
                       </span>
                       <button
                         type="button"
                         onClick={clearEvents}
-                        disabled={eventLog.length === 0 && toasts.length === 0}
+                        disabled={visibleAlerts.length === 0 && eventLog.length === 0 && toasts.length === 0}
                       >
                         Clear
                       </button>
                     </span>
                   </div>
                   <div className="studio-notif-list">
-                    {alerts.slice(0, 12).map((entry) => (
+                    {visibleAlerts.slice(0, 12).map((entry) => (
                       <StudioAlertRow
                         key={entry.id}
                         entry={entry}
@@ -2359,7 +2382,7 @@ export default function StudioDashboard() {
                     </div>
                   </header>
                   <div className="nerve-alert-list">
-                    {alerts.slice(0, 5).map((entry) => (
+                    {visibleAlerts.slice(0, 5).map((entry) => (
                       <StudioAlertRow key={entry.id} entry={entry} showMeta={false} />
                     ))}
                   </div>

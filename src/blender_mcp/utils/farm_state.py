@@ -75,6 +75,8 @@ class FarmJobStore:
                 db.execute("ALTER TABLE farm_frames ADD COLUMN gpu_name TEXT")
             if "gpu_index" not in frame_columns:
                 db.execute("ALTER TABLE farm_frames ADD COLUMN gpu_index INTEGER")
+            if "started_at" not in frame_columns:
+                db.execute("ALTER TABLE farm_frames ADD COLUMN started_at REAL")
             if "wait_reason" not in columns:
                 db.execute("ALTER TABLE farm_jobs ADD COLUMN wait_reason TEXT")
             db.execute("CREATE TABLE IF NOT EXISTS farm_audit (id INTEGER PRIMARY KEY, at REAL NOT NULL DEFAULT (unixepoch('subsec')), actor TEXT NOT NULL, action TEXT NOT NULL, target TEXT NOT NULL)")
@@ -263,7 +265,7 @@ class FarmJobStore:
                 raise ValueError(f"job is {job['status']}")
             result = db.execute(
                 "UPDATE farm_frames SET status='running', worker_id=?, gpu_name=?, gpu_index=?, "
-                "attempts=attempts+1, error=NULL, updated_at=unixepoch('subsec') "
+                "attempts=attempts+1, error=NULL, started_at=unixepoch('subsec'), updated_at=unixepoch('subsec') "
                 "WHERE job_id=? AND frame=? AND status IN ('pending','failed')",
                 (worker_id, gpu_name, gpu_index, job_id, frame),
             )
@@ -384,6 +386,26 @@ class FarmJobStore:
             ).fetchone()
             total = int(counts["total"] or 0)
             completed = int(counts["completed"] or 0)
+            # Live estimate: a rendering frame counts for the share of the average
+            # completed-frame time it has already used, capped below 100% so the bar
+            # cannot finish before the frame does.
+            now = float(db.execute("SELECT unixepoch('subsec') AS now").fetchone()["now"])
+            average = db.execute(
+                "SELECT AVG(updated_at - started_at) AS seconds FROM farm_frames "
+                "WHERE job_id=? AND status='completed' AND started_at IS NOT NULL AND updated_at >= started_at",
+                (job_id,),
+            ).fetchone()["seconds"]
+            partial = 0.0
+            if average and average > 0:
+                for row in db.execute(
+                    "SELECT started_at FROM farm_frames WHERE job_id=? AND status='running' AND started_at IS NOT NULL",
+                    (job_id,),
+                ).fetchall():
+                    partial += min(0.95, max(0.0, (now - row["started_at"]) / average))
+            if not total or completed == total:
+                percent = 100
+            else:
+                percent = min(99, round((completed + partial) * 100 / total))
             return {
                 **dict(job),
                 "total_frames": total,
@@ -391,7 +413,7 @@ class FarmJobStore:
                 "failed": int(counts["failed"] or 0),
                 "running": int(counts["running"] or 0),
                 "pending": int(counts["pending"] or 0),
-                "percent": round(completed * 100 / total) if total else 100,
+                "percent": percent,
                 "missing_frames": self.get_missing_frames(job_id),
             }
 

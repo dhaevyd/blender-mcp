@@ -209,14 +209,19 @@
 
 .studio-workers .worker-row-actions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: flex-end;
   gap: 6px;
 }
 
 .studio-workers .worker-delete-trigger {
-  width: 28px;
-  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  width: auto;
+  padding: 0 10px;
+  white-space: nowrap;
 }
 
 .studio-workers .worker-delete-trigger:hover:not(:disabled) {

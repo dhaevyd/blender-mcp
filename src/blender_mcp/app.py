@@ -481,3 +481,7 @@ def _load_specific_script(category: str, script_name: str) -> Dict[str, Any]:
 
 # For backward compatibility
 app = get_app()
+
+from blender_mcp.utils.mcp_body_limit import apply as _apply_mcp_body_limit
+
+_apply_mcp_body_limit()
