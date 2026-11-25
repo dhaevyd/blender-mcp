@@ -24,7 +24,9 @@ logger = logging.getLogger(__name__)
 _executor = BlenderExecutor()
 
 # Constants for render engines
-RENDER_ENGINE_EEVEE = "BLENDER_EEVEE"
+# Blender 4.2+ replaced BLENDER_EEVEE with BLENDER_EEVEE_NEXT (EEVEE Next).
+# Blender 5.x only ships EEVEE Next; the old ID no longer works.
+RENDER_ENGINE_EEVEE = "BLENDER_EEVEE_NEXT"
 RENDER_ENGINE_CYCLES = "CYCLES"
 RENDER_ENGINE_WORKBENCH = "BLENDER_WORKBENCH"
 
@@ -78,10 +80,6 @@ async def set_render_engine(
     use_adaptive_sampling = kwargs.get("use_adaptive_sampling", True)
     adaptive_threshold = kwargs.get("adaptive_threshold", 0.01)
     tile_size = kwargs.get("tile_size", 2048)
-    use_motion_blur = kwargs.get("use_motion_blur", True)
-    motion_blur_steps = kwargs.get("motion_blur_steps", 1)
-    use_bloom = kwargs.get("use_bloom", True)
-    bloom_threshold = kwargs.get("bloom_threshold", 1.0)
 
     # The shared setup selects the vendor's backend and disables the CPU device.
     # It fails when a detected GPU cannot be enabled (MCP_RENDER_REQUIRE_GPU defaults on).
@@ -92,22 +90,21 @@ async def set_render_engine(
 def configure_render_engine():
     scene = bpy.context.scene
 
-    # Set the render engine (Blender 4.2 renamed EEVEE to BLENDER_EEVEE_NEXT)
+    # Blender 5.x only ships EEVEE Next (BLENDER_EEVEE_NEXT).
+    # Accept the legacy alias gracefully in case a caller passes the old ID.
     _engine = '{engine}'
-    if _engine == 'BLENDER_EEVEE' and bpy.app.version >= (4, 2, 0):
+    if _engine == 'BLENDER_EEVEE':
         _engine = 'BLENDER_EEVEE_NEXT'
     scene.render.engine = _engine
 
-    # Common settings (preserve resolution unless overridden via kwargs)
-    res_x = {resolution_x}
-    res_y = {resolution_y}
-    scene.render.resolution_x = res_x
-    scene.render.resolution_y = res_y
+    # Common settings
+    scene.render.resolution_x = {resolution_x}
+    scene.render.resolution_y = {resolution_y}
     scene.render.resolution_percentage = 100
 
 {gpu_setup}
     if '{engine}' == '{RENDER_ENGINE_CYCLES}':
-        # Cycles specific settings
+        # Cycles-specific settings
         scene.cycles.samples = {samples}
         scene.cycles.use_denoising = {use_denoising}
         scene.cycles.use_adaptive_sampling = {use_adaptive_sampling}
@@ -115,21 +112,19 @@ def configure_render_engine():
         scene.cycles.tile_size = {tile_size}
 
     elif _engine.startswith('BLENDER_EEVEE'):
-        # EEVEE specific settings
+        # EEVEE Next (Blender 4.2+/5.x) settings.
+        # Bloom, motion-blur and SSR moved out of scene.eevee in 4.2;
+        # configure them via the compositor if needed.
         scene.eevee.taa_render_samples = {samples}
-        scene.eevee.use_bloom = {use_bloom}
-        scene.eevee.bloom_threshold = {bloom_threshold}
-        scene.eevee.use_motion_blur = {use_motion_blur}
-        scene.eevee.motion_blur_steps = {motion_blur_steps}
 
     return {{
         'status': 'SUCCESS',
-        'engine': '{engine}',
+        'engine': _engine,
         'device': MCP_RENDER_DEVICE_INFO.get('device'),
         'backend': MCP_RENDER_DEVICE_INFO.get('backend'),
         'gpu_devices': MCP_RENDER_DEVICE_INFO.get('devices', []),
         'samples': {samples},
-        'use_denoising': {use_denoising}
+        'use_denoising': {use_denoising},
     }}
 
 try:
@@ -202,16 +197,7 @@ async def configure_render_layers(
         Dict containing operation status and render layer configuration
     """
     # Get additional settings with defaults
-    use_solid = kwargs.get("use_solid", True)
-    use_halo = kwargs.get("use_halo", True)
-    use_ztransp = kwargs.get("use_ztransp", True)
-    use_strand = kwargs.get("use_strand", True)
     use_freestyle = kwargs.get("use_freestyle", False)
-    use_sky = kwargs.get("use_sky", True)
-    use_edge_enhance = kwargs.get("use_edge_enhance", False)
-    use_all_z = kwargs.get("use_all_z", False)
-    exclude_raytrace = kwargs.get("exclude_raytrace", False)
-    light_override = kwargs.get("light_override", None)
 
     script = f"""
 
@@ -219,115 +205,62 @@ def configure_layers():
     scene = bpy.context.scene
 
     # Get or create the render layer
-    rl = scene.view_layers.get('{layer_name}')
+    rl = scene.view_layers.get({layer_name!r})
     if not rl:
-        rl = scene.view_layers.new('{layer_name}')
+        rl = scene.view_layers.new({layer_name!r})
 
-    # Set as active render layer
     scene.view_layers.active = rl
 
-    # Basic layer settings
-    rl.use_solid = {str(use_solid).lower()}
-    rl.use_halo = {str(use_halo).lower()}
-    rl.use_ztransp = {str(use_ztransp).lower()}
-    rl.use_strand = {str(use_strand).lower()}
+    # Freestyle (still present in 5.x)
     rl.use_freestyle = {str(use_freestyle).lower()}
-    rl.use_sky = {str(use_sky).lower()}
-    rl.use_edge_enhance = {str(use_edge_enhance).lower()}
-    rl.use_all_z = {str(use_all_z).lower()}
-    rl.exclude_raytraced = {str(exclude_raytrace).lower()}
 
-    # Configure render passes
-    rl.cycles.use_pass_combined = {str(use_pass_combined).lower()}
-    rl.cycles.use_pass_z = {str(use_pass_z).lower()}
-    rl.cycles.use_pass_normal = {str(use_pass_normal).lower()}
-    rl.cycles.use_pass_diffuse_direct = {str(use_pass_diffuse).lower()}
-    rl.cycles.use_pass_diffuse_indirect = {str(use_pass_diffuse).lower()}
-    rl.cycles.use_pass_diffuse_color = {str(use_pass_diffuse).lower()}
-    rl.cycles.use_pass_glossy_direct = {str(use_pass_glossy).lower()}
-    rl.cycles.use_pass_glossy_indirect = {str(use_pass_glossy).lower()}
-    rl.cycles.use_pass_glossy_color = {str(use_pass_glossy).lower()}
-    rl.cycles.use_pass_ambient_occlusion = {str(use_pass_ambient_occlusion).lower()}
-    rl.cycles.use_pass_shadow = {str(use_pass_shadow).lower()}
-    rl.cycles.use_pass_emit = {str(use_pass_emit).lower()}
-    rl.cycles.use_pass_environment = {str(use_pass_environment).lower()}
-    rl.cycles.use_pass_indirect = {str(use_pass_indirect).lower()}
-    rl.cycles.use_pass_reflection = {str(use_pass_reflection).lower()}
-    rl.cycles.use_pass_refraction = {str(use_pass_refraction).lower()}
-    rl.cycles.use_pass_uv = {str(use_pass_uv).lower()}
-    rl.cycles.use_pass_mist = {str(use_pass_mist).lower()}
-    rl.cycles.use_pass_object_index = {str(use_pass_object_index).lower()}
-    rl.cycles.use_pass_material_index = {str(use_pass_material_index).lower()}
-    rl.cycles.use_pass_vector = {str(use_pass_vector).lower()}
-    rl.cycles.use_pass_cryptomatte_object = {str(use_pass_cryptomatte_object).lower()}
-    rl.cycles.use_pass_cryptomatte_material = {str(use_pass_cryptomatte_material).lower()}
-    rl.cycles.use_pass_cryptomatte_asset = {str(use_pass_cryptomatte_asset).lower()}
-    rl.cycles.use_pass_shadow_catcher = {str(use_pass_shadow_catcher).lower()}
-
-    # Light override
-    if '{light_override}' is not None:
-        rl.light_override = bpy.data.objects.get('{light_override}')
+    # Render passes — in Blender 4.x+/5.x these live directly on the
+    # view layer, not on rl.cycles.*. Guard each with hasattr so the script
+    # does not error on a build that happens to lack a pass.
+    _pass_map = {{
+        'use_pass_combined':              {str(use_pass_combined).lower()},
+        'use_pass_z':                     {str(use_pass_z).lower()},
+        'use_pass_normal':                {str(use_pass_normal).lower()},
+        'use_pass_diffuse_direct':        {str(use_pass_diffuse).lower()},
+        'use_pass_diffuse_indirect':      {str(use_pass_diffuse).lower()},
+        'use_pass_diffuse_color':         {str(use_pass_diffuse).lower()},
+        'use_pass_glossy_direct':         {str(use_pass_glossy).lower()},
+        'use_pass_glossy_indirect':       {str(use_pass_glossy).lower()},
+        'use_pass_glossy_color':          {str(use_pass_glossy).lower()},
+        'use_pass_ambient_occlusion':     {str(use_pass_ambient_occlusion).lower()},
+        'use_pass_shadow':                {str(use_pass_shadow).lower()},
+        'use_pass_emit':                  {str(use_pass_emit).lower()},
+        'use_pass_environment':           {str(use_pass_environment).lower()},
+        'use_pass_uv':                    {str(use_pass_uv).lower()},
+        'use_pass_mist':                  {str(use_pass_mist).lower()},
+        'use_pass_object_index':          {str(use_pass_object_index).lower()},
+        'use_pass_material_index':        {str(use_pass_material_index).lower()},
+        'use_pass_vector':                {str(use_pass_vector).lower()},
+        'use_pass_cryptomatte_object':    {str(use_pass_cryptomatte_object).lower()},
+        'use_pass_cryptomatte_material':  {str(use_pass_cryptomatte_material).lower()},
+        'use_pass_cryptomatte_asset':     {str(use_pass_cryptomatte_asset).lower()},
+        'use_pass_shadow_catcher':        {str(use_pass_shadow_catcher).lower()},
+    }}
+    for attr, val in _pass_map.items():
+        # Try view layer first (4.x+), then rl.cycles for older builds
+        if hasattr(rl, attr):
+            setattr(rl, attr, val)
+        elif hasattr(rl, 'cycles') and hasattr(rl.cycles, attr):
+            setattr(rl.cycles, attr, val)
 
     return {{
         'status': 'SUCCESS',
         'render_layer': rl.name,
-        'settings': {{
-            'use_solid': {str(use_solid).lower()},
-            'use_halo': {str(use_halo).lower()},
-            'use_ztransp': {str(use_ztransp).lower()},
-            'use_strand': {str(use_strand).lower()},
-            'use_freestyle': {str(use_freestyle).lower()},
-            'use_sky': {str(use_sky).lower()},
-            'use_edge_enhance': {str(use_edge_enhance).lower()},
-            'use_all_z': {str(use_all_z).lower()},
-            'exclude_raytraced': {str(exclude_raytrace).lower()},
-            'light_override': '{light_override}'
-        }}
+        'use_freestyle': {str(use_freestyle).lower()},
     }}
 
 try:
     result = configure_layers()
 except Exception as e:
-    result = {{
-        'status': 'ERROR',
-        'error': str(e)
-    }}
+    result = {{'status': 'ERROR', 'error': str(e)}}
 
 print(str(result))
-""".format(
-        layer_name=layer_name,
-        use_solid=use_solid,
-        use_halo=use_halo,
-        use_ztransp=use_ztransp,
-        use_strand=use_strand,
-        use_freestyle=use_freestyle,
-        use_sky=use_sky,
-        use_edge_enhance=use_edge_enhance,
-        use_all_z=use_all_z,
-        exclude_raytrace=exclude_raytrace,
-        light_override=light_override or "",
-        use_pass_combined=use_pass_combined,
-        use_pass_z=use_pass_z,
-        use_pass_normal=use_pass_normal,
-        use_pass_diffuse=use_pass_diffuse,
-        use_pass_glossy=use_pass_glossy,
-        use_pass_ambient_occlusion=use_pass_ambient_occlusion,
-        use_pass_shadow=use_pass_shadow,
-        use_pass_emit=use_pass_emit,
-        use_pass_environment=use_pass_environment,
-        use_pass_indirect=use_pass_indirect,
-        use_pass_reflection=use_pass_reflection,
-        use_pass_refraction=use_pass_refraction,
-        use_pass_uv=use_pass_uv,
-        use_pass_mist=use_pass_mist,
-        use_pass_object_index=use_pass_object_index,
-        use_pass_material_index=use_pass_material_index,
-        use_pass_vector=use_pass_vector,
-        use_pass_cryptomatte_object=use_pass_cryptomatte_object,
-        use_pass_cryptomatte_material=use_pass_cryptomatte_material,
-        use_pass_cryptomatte_asset=use_pass_cryptomatte_asset,
-        use_pass_shadow_catcher=use_pass_shadow_catcher,
-    )
+"""
 
     try:
         output = await _executor.execute_script(script)
@@ -568,87 +501,70 @@ def setup_post_processing():
     # Basic settings
     {settings_str}
 
-    # Bloom
-    eevee.use_bloom = {str(use_bloom).lower()}
-    if {str(use_bloom).lower()}:
-        eevee.bloom_threshold = bloom_threshold
-        eevee.bloom_radius = bloom_radius
-        eevee.bloom_color = bloom_color
+    # Bloom — removed from scene.eevee in EEVEE Next (Blender 4.2+/5.x).
+    # Configure via the Glare node in the compositor if bloom is needed.
 
-    # SSAO
+    # SSAO / Ground Truth AO (still present in EEVEE Next)
     eevee.use_gtao = {str(use_ssao).lower()}
     if {str(use_ssao).lower()}:
-        eevee.gtao_factor = ssao_factor
-        eevee.gtao_distance = ssao_distance
+        if hasattr(eevee, 'gtao_factor'):
+            eevee.gtao_factor = ssao_factor
+        if hasattr(eevee, 'gtao_distance'):
+            eevee.gtao_distance = ssao_distance
 
-    # Motion Blur
-    eevee.use_motion_blur = {str(use_motion_blur).lower()}
-    if {str(use_motion_blur).lower()}:
-        eevee.motion_blur_shutter = motion_blur_shutter
+    # Motion Blur — removed from scene.eevee in EEVEE Next (Blender 4.2+/5.x).
+    # Configure motion blur via scene.render.use_motion_blur if needed.
 
-    # Depth of Field
-    eevee.use_dof = {str(use_dof).lower()}
-    if {str(use_dof).lower()}:
+    # Depth of Field — configure on the camera data directly (works in all versions)
+    if {str(use_dof).lower()} and scene.camera:
+        cam = scene.camera.data
+        cam.dof.use_dof = True
         if dof_focus_object:
             focus_obj = bpy.data.objects.get(dof_focus_object)
             if focus_obj:
-                scene.camera.data.dof.focus_object = focus_obj
+                cam.dof.focus_object = focus_obj
         else:
-            scene.camera.data.dof.focus_distance = dof_focus_distance
-        scene.camera.data.dof.aperture_fstop = dof_fstop
-        scene.camera.data.dof.aperture_blades = dof_blades
+            cam.dof.focus_distance = dof_focus_distance
+        cam.dof.aperture_fstop = dof_fstop
+        cam.dof.aperture_blades = dof_blades
 
-    # Volumetrics
-    eevee.use_volumetric_lights = {str(settings["use_volumetric_lights"]).lower()}
-    eevee.use_volumetric_shadows = {str(settings["use_volumetric_shadows"]).lower()}
-    eevee.volumetric_tile_size = volumetric_tile_size
-    eevee.volumetric_samples = volumetric_samples
+    # Volumetrics (still present in EEVEE Next)
+    if hasattr(eevee, 'use_volumetric_lights'):
+        eevee.use_volumetric_lights = {str(settings["use_volumetric_lights"]).lower()}
+    if hasattr(eevee, 'use_volumetric_shadows'):
+        eevee.use_volumetric_shadows = {str(settings["use_volumetric_shadows"]).lower()}
+    if hasattr(eevee, 'volumetric_tile_size'):
+        eevee.volumetric_tile_size = volumetric_tile_size
+    if hasattr(eevee, 'volumetric_samples'):
+        eevee.volumetric_samples = volumetric_samples
 
-    # SSS
-    eevee.sss_samples = sss_samples
+    # Screen Space Reflections / SSS / shadow sizes — removed from scene.eevee in EEVEE Next.
+    # These are now handled internally by EEVEE Next or via render settings.
 
-    # Screen Space Reflections
-    eevee.use_ssr = {str(settings["use_screen_space_reflections"]).lower()}
-    eevee.use_ssr_refraction = {str(settings["use_screen_space_reflections"]).lower()}
-    eevee.ssr_quality = ssr_quality
-    eevee.ssr_thickness = ssr_thickness
-    eevee.ssr_max_roughness = ssr_max_roughness
-
-    # Anti-aliasing
-    eevee.taa_render_samples = taa_samples
-    eevee.use_taa_reprojection = {str(settings["use_taa"]).lower()}
-    eevee.use_taa = {str(settings["use_taa"]).lower()}
-    eevee.use_gtao = {str(settings["use_ambient_occlusion"]).lower()}
-
-    # Shadows
-    eevee.shadow_cube_size = '1024' if shadow_quality in ['HIGH', 'ULTRA'] else '512'
-    eevee.shadow_cascade_size = '1024' if shadow_quality == 'ULTRA' else '512'
+    # Anti-aliasing (taa_render_samples is still present in EEVEE Next)
+    if hasattr(eevee, 'taa_render_samples'):
+        eevee.taa_render_samples = taa_samples
 
     # Color Management
     scene.view_settings.exposure = exposure
     scene.view_settings.gamma = gamma
-    scene.sequencer_colorspace_settings.name = 'sRGB'  # Default color space
 
-    # Update the viewport
     bpy.context.view_layer.update()
 
     return {{
         'status': 'SUCCESS',
         'settings': {{
-            'bloom': {str(use_bloom).lower()},
             'ssao': {str(use_ssao).lower()},
-            'motion_blur': {str(use_motion_blur).lower()},
-            'dof': {str(use_dof).lower()}
+            'dof': {str(use_dof).lower()},
+            'bloom_note': 'Bloom moved to compositor in EEVEE Next (Blender 4.2+/5.x)',
+            'motion_blur_note': 'Motion blur moved to scene.render in EEVEE Next',
         }}
     }}
 
 try:
     result = setup_post_processing()
 except Exception as e:
-    result = {{
-        'status': 'ERROR',
-        'error': str(e)
-    }}
+    result = {{'status': 'ERROR', 'error': str(e)}}
 
 print(str(result))
 """
