@@ -137,6 +137,7 @@ class BlenderFarmCoordinator:
         self._pause_events: dict[str, asyncio.Event] = {}
         self._worker_last_seen: dict[str, float] = {}
         self._offline_workers: set[str] = set()
+        self._worker_stats: dict[str, list[float]] = {}
         self.store.recover_interrupted_jobs()
 
     def _client(self, worker_id: str) -> Any:
@@ -178,6 +179,7 @@ class BlenderFarmCoordinator:
         assemble_video: bool = False,
         video_format: str = "mp4",
         fps: int = 24,
+        priority: int = 0,
     ) -> dict[str, Any]:
         source = _workspace_path(self.workspace, project_path)
         if not source.is_file() or source.suffix.lower() not in {".blend", ".zip"}:
@@ -288,7 +290,7 @@ class BlenderFarmCoordinator:
             "video_format": video_format if video_format in {"mp4", "prores"} else "mp4",
             "fps": max(1, fps),
         }
-        self.store.create_job(job_id, str(source.relative_to(self.workspace)), frame_start, frame_end, metadata=metadata)
+        self.store.create_job(job_id, str(source.relative_to(self.workspace)), frame_start, frame_end, metadata=metadata, priority=int(priority))
         event = asyncio.Event()
         event.set()
         self._pause_events[job_id] = event
@@ -297,6 +299,7 @@ class BlenderFarmCoordinator:
             "success": True,
             "job_id": job_id,
             "status": "running",
+            "priority": int(priority),
             "frame_start": frame_start,
             "frame_end": frame_end,
             "worker_ids": sorted(synced),
@@ -448,6 +451,46 @@ class BlenderFarmCoordinator:
                     log.warning("Job %s: worker %s bundle cleanup failed — %s", job_id, worker_id, result.get("error", "unknown"))
             except Exception as exc:
                 log.warning("Job %s: worker %s bundle cleanup error — %s", job_id, worker_id, exc)
+
+    async def _assemble_video(self, job_id: str, metadata: dict[str, Any]) -> None:
+        """Stitch collected frames into a video using ffmpeg."""
+        import shutil
+        if not shutil.which("ffmpeg"):
+            logger.warning("Job %s: assemble_video requested but ffmpeg is not installed — skipping", job_id)
+            return
+        output_dir = self.workspace / metadata["output_directory"]
+        fps = metadata.get("fps", 24)
+        fmt = metadata.get("video_format", "mp4")
+        input_pattern = str(output_dir / f"{metadata['prefix']}%06d.png")
+        if fmt == "prores":
+            out_file = output_dir / "output.mov"
+            codec_args = ["-c:v", "prores_ks", "-profile:v", "3"]
+        else:
+            out_file = output_dir / "output.mp4"
+            codec_args = ["-c:v", "libx264", "-pix_fmt", "yuv420p"]
+        cmd = [
+            "ffmpeg", "-y",
+            "-framerate", str(fps),
+            "-i", input_pattern,
+            *codec_args,
+            str(out_file),
+        ]
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            _, stderr = await asyncio.wait_for(proc.communicate(), timeout=3600)
+            if proc.returncode != 0:
+                logger.error("Job %s: ffmpeg failed — %s", job_id, stderr.decode(errors="replace")[-500:])
+            else:
+                logger.info("Job %s: video assembled → %s", job_id, out_file)
+                self.store.set_job_metadata_field(job_id, "video_output_path", str(out_file.relative_to(self.workspace)))
+        except asyncio.TimeoutError:
+            logger.error("Job %s: ffmpeg assembly timed out after 3600s", job_id)
+        except Exception as exc:
+            logger.error("Job %s: ffmpeg assembly error — %s", job_id, exc)
 
     @staticmethod
     def _gpu_free_threshold(device: dict[str, Any]) -> int:

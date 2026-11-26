@@ -77,10 +77,14 @@ class FarmJobStore:
                 db.execute("ALTER TABLE farm_frames ADD COLUMN gpu_index INTEGER")
             if "started_at" not in frame_columns:
                 db.execute("ALTER TABLE farm_frames ADD COLUMN started_at REAL")
+            if "finished_at" not in frame_columns:
+                db.execute("ALTER TABLE farm_frames ADD COLUMN finished_at REAL")
             if "reassigned_count" not in frame_columns:
                 db.execute("ALTER TABLE farm_frames ADD COLUMN reassigned_count INTEGER NOT NULL DEFAULT 0")
             if "wait_reason" not in columns:
                 db.execute("ALTER TABLE farm_jobs ADD COLUMN wait_reason TEXT")
+            if "priority" not in columns:
+                db.execute("ALTER TABLE farm_jobs ADD COLUMN priority INTEGER NOT NULL DEFAULT 0")
             db.execute("CREATE TABLE IF NOT EXISTS farm_audit (id INTEGER PRIMARY KEY, at REAL NOT NULL DEFAULT (unixepoch('subsec')), actor TEXT NOT NULL, action TEXT NOT NULL, target TEXT NOT NULL)")
             worker_columns = {row["name"] for row in db.execute("PRAGMA table_info(managed_workers)")}
             if "verified" not in worker_columns:
@@ -228,6 +232,7 @@ class FarmJobStore:
         frame_end: int,
         *,
         metadata: dict[str, Any] | None = None,
+        priority: int = 0,
     ) -> None:
         if not job_id.strip() or not project_path.strip():
             raise ValueError("job_id and project_path are required")
@@ -235,9 +240,9 @@ class FarmJobStore:
             raise ValueError("invalid frame range")
         with self._connect() as db:
             db.execute(
-                "INSERT INTO farm_jobs(id, project_path, frame_start, frame_end, status, metadata_json) "
-                "VALUES (?, ?, ?, ?, 'running', ?)",
-                (job_id, project_path, frame_start, frame_end, json.dumps(metadata or {}, sort_keys=True)),
+                "INSERT INTO farm_jobs(id, project_path, frame_start, frame_end, status, metadata_json, priority) "
+                "VALUES (?, ?, ?, ?, 'running', ?, ?)",
+                (job_id, project_path, frame_start, frame_end, json.dumps(metadata or {}, sort_keys=True), int(priority)),
             )
             db.executemany(
                 "INSERT INTO farm_frames(job_id, frame) VALUES (?, ?)",
@@ -292,7 +297,8 @@ class FarmJobStore:
             if job["status"] == "cancelled":
                 return
             result = db.execute(
-                "UPDATE farm_frames SET status=?, output_path=?, error=?, log=?, updated_at=unixepoch('subsec') WHERE job_id=? AND frame=?",
+                "UPDATE farm_frames SET status=?, output_path=?, error=?, log=?, "
+                "finished_at=unixepoch('subsec'), updated_at=unixepoch('subsec') WHERE job_id=? AND frame=?",
                 (
                     status,
                     output_path if success else None,
@@ -334,8 +340,8 @@ class FarmJobStore:
             raise ValueError("limit must be between 1 and 100")
         with self._connect() as db:
             rows = db.execute(
-                "SELECT id, project_path, frame_start, frame_end, status, created_at, updated_at "
-                "FROM farm_jobs ORDER BY created_at DESC LIMIT ?",
+                "SELECT id, project_path, frame_start, frame_end, status, priority, created_at, updated_at "
+                "FROM farm_jobs ORDER BY priority DESC, created_at DESC LIMIT ?",
                 (limit,),
             ).fetchall()
             return [dict(row) for row in rows]
@@ -366,7 +372,7 @@ class FarmJobStore:
                 raise KeyError(job_id)
             rows = db.execute(
                 "SELECT frame, status, worker_id, gpu_name, gpu_index, attempts, reassigned_count, "
-                "output_path, error, log, updated_at "
+                "output_path, error, log, started_at, finished_at, updated_at "
                 "FROM farm_frames WHERE job_id=? ORDER BY frame",
                 (job_id,),
             ).fetchall()
@@ -390,7 +396,7 @@ class FarmJobStore:
     def get_progress(self, job_id: str) -> dict[str, Any]:
         with self._connect() as db:
             job = db.execute(
-                "SELECT id, project_path, frame_start, frame_end, status, wait_reason, created_at, updated_at FROM farm_jobs WHERE id=?",
+                "SELECT id, project_path, frame_start, frame_end, status, priority, wait_reason, created_at, updated_at FROM farm_jobs WHERE id=?",
                 (job_id,),
             ).fetchone()
             if job is None:
@@ -424,6 +430,9 @@ class FarmJobStore:
                 percent = 100
             else:
                 percent = min(99, round((completed + partial) * 100 / total))
+            avg_frame_seconds = round(float(average), 2) if average and average > 0 else None
+            remaining = int(counts["pending"] or 0) + int(counts["running"] or 0)
+            eta_seconds = round(avg_frame_seconds * remaining, 1) if avg_frame_seconds else None
             return {
                 **dict(job),
                 "total_frames": total,
@@ -432,6 +441,8 @@ class FarmJobStore:
                 "running": int(counts["running"] or 0),
                 "pending": int(counts["pending"] or 0),
                 "percent": percent,
+                "avg_frame_seconds": avg_frame_seconds,
+                "eta_seconds": eta_seconds,
                 "missing_frames": self.get_missing_frames(job_id),
             }
 
