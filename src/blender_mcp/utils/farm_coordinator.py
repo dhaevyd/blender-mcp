@@ -138,6 +138,7 @@ class BlenderFarmCoordinator:
         self._worker_last_seen: dict[str, float] = {}
         self._offline_workers: set[str] = set()
         self._worker_stats: dict[str, list[float]] = {}
+        self._worker_capabilities: dict[str, dict[str, Any]] = {}
         self.store.recover_interrupted_jobs()
 
     def _client(self, worker_id: str) -> Any:
@@ -154,11 +155,16 @@ class BlenderFarmCoordinator:
                 if "blender_farm_worker" not in tool_names:
                     return {"worker_id": worker.worker_id, "online": False, "error": "worker capability tool is missing"}
                 info = await client.call_tool("blender_farm_worker", {"operation": "identity"})
+                caps = info.get("render_capabilities")
+                if isinstance(caps, dict):
+                    self._worker_capabilities[worker.worker_id] = caps
+                    logger.info("Worker %s: %s", worker.worker_id, caps.get("capabilities_summary", "unknown"))
                 return {
                     "worker_id": worker.worker_id,
                     "online": bool(info.get("online", info.get("success", True))),
                     "url": worker.url,
                     "tools": sorted(tool_names),
+                    "render_capabilities": caps,
                     "identity": _redact_worker_payload(info, worker.api_key),
                 }
             except Exception:
@@ -526,7 +532,13 @@ class BlenderFarmCoordinator:
     async def _read_worker_identity(self, worker_id: str) -> dict[str, Any] | None:
         try:
             result = await self._client(worker_id).call_tool("blender_farm_worker", {"operation": "identity"}, timeout=15)
-            return result if isinstance(result, dict) and result.get("online") else None
+            if isinstance(result, dict) and result.get("online"):
+                caps = result.get("render_capabilities")
+                if isinstance(caps, dict):
+                    self._worker_capabilities[worker_id] = caps
+                    logger.info("Worker %s enrolled: %s", worker_id, caps.get("capabilities_summary", "unknown"))
+                return result
+            return None
         except Exception:
             return None
 

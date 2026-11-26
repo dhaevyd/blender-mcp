@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import ipaddress
 import json
 import logging
@@ -107,6 +108,20 @@ def load_worker_configs(raw: str | None = None, environ: dict[str, str] | None =
         # Ignore legacy `slots` values so existing environment configuration remains loadable.
         configs.append(WorkerConfig(worker_id=worker_id, url=url, api_key=api_key, workspace=workspace))
     return configs
+
+
+def _worker_display_name(worker_id: str) -> str:
+    """Return the worker's display name.
+
+    Reads BLENDER_FARM_WORKER_NAME first; falls back to a friendly
+    hostname + 4-char hash of the worker_id, e.g. "render-node-a3f2".
+    """
+    custom = os.environ.get("BLENDER_FARM_WORKER_NAME", "").strip()
+    if custom:
+        return custom
+    hostname = socket.gethostname().split(".")[0].lower()
+    short_hash = hashlib.sha256(worker_id.encode()).hexdigest()[:4]
+    return f"{hostname}-{short_hash}"
 
 
 def worker_identity(config: WorkerConfig | None = None) -> dict[str, Any]:
