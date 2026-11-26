@@ -335,6 +335,17 @@ class FarmJobStore:
             value = json.loads(row["metadata_json"])
             return value if isinstance(value, dict) else {}
 
+    def set_job_metadata_field(self, job_id: str, key: str, value: Any) -> None:
+        with self._connect() as db:
+            row = db.execute("SELECT metadata_json FROM farm_jobs WHERE id=?", (job_id,)).fetchone()
+            if row is None:
+                raise KeyError(job_id)
+            meta = json.loads(row["metadata_json"])
+            if not isinstance(meta, dict):
+                meta = {}
+            meta[key] = value
+            db.execute("UPDATE farm_jobs SET metadata_json=? WHERE id=?", (json.dumps(meta), job_id))
+
     def list_jobs(self, limit: int = 20) -> list[dict[str, Any]]:
         if not 1 <= limit <= 100:
             raise ValueError("limit must be between 1 and 100")

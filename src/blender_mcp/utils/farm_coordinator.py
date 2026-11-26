@@ -487,7 +487,7 @@ class BlenderFarmCoordinator:
             else:
                 logger.info("Job %s: video assembled → %s", job_id, out_file)
                 self.store.set_job_metadata_field(job_id, "video_output_path", str(out_file.relative_to(self.workspace)))
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.error("Job %s: ffmpeg assembly timed out after 3600s", job_id)
         except Exception as exc:
             logger.error("Job %s: ffmpeg assembly error — %s", job_id, exc)
@@ -688,7 +688,11 @@ class BlenderFarmCoordinator:
                             memory_delta = rendered.get("gpu_memory_delta_mib")
                             if isinstance(memory_delta, int):
                                 observed_peak_mib = max(observed_peak_mib, memory_delta)
+                            import time as _time
+                            _t0 = _time.monotonic()
                             await self._collect_frame(job_id, frame, worker_id, str(rendered["output_path"]), metadata)
+                            _elapsed = _time.monotonic() - _t0
+                            self._worker_stats.setdefault(worker_id, []).append(_elapsed)
                             self.store.finish_frame(
                                 job_id,
                                 frame,
@@ -768,6 +772,14 @@ class BlenderFarmCoordinator:
     def job_status(self, job_id: str) -> dict[str, Any]:
         progress = self.store.get_progress(job_id)
         progress["frames"] = self.store.get_frame_records(job_id)
+        worker_utilization = {}
+        for wid, times in self._worker_stats.items():
+            if times:
+                worker_utilization[wid] = {
+                    "frames_rendered": len(times),
+                    "avg_seconds": round(sum(times) / len(times), 2),
+                }
+        progress["worker_utilization"] = worker_utilization
         return progress
 
     def list_jobs(self, limit: int = 20) -> list[dict[str, Any]]:
