@@ -156,7 +156,13 @@ class FarmJobStore:
             row = db.execute("SELECT encrypted_key FROM managed_workers WHERE worker_id=?", (worker_id,)).fetchone()
         if row is None:
             raise KeyError(worker_id)
-        return self._fernet().decrypt(bytes(row["encrypted_key"])).decode()
+        try:
+            return self._fernet().decrypt(bytes(row["encrypted_key"])).decode()
+        except Exception as exc:
+            raise ValueError(
+                f"Worker {worker_id!r}: could not decrypt stored API key — farm.key may have changed. "
+                "Re-enroll the worker and update its BLENDER_MCP_WORKER_KEY in .env."
+            ) from exc
 
     def update_managed_worker(self, worker_id: str, fields: dict[str, Any]) -> bool:
         allowed = {"name", "url", "workspace", "slots", "enabled", "verified"}

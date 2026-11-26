@@ -18,14 +18,21 @@ def _coordinator() -> BlenderFarmCoordinator:
         workspace = Path(os.environ.get("BLENDER_WORKSPACE", "/workspace")).resolve()
         database = Path(os.environ.get("BLENDER_FARM_DB_PATH", str(workspace / ".blender-farm" / "farm.sqlite3")))
         _FARM = BlenderFarmCoordinator(workspace, database, load_worker_configs())
+        import logging as _logging
+        _farm_log = _logging.getLogger("blender_mcp.farm_tools")
         for record in _FARM.store.list_managed_workers():
             if record["enabled"]:
                 from blender_mcp.utils.farm_workers import WorkerConfig
 
+                try:
+                    secret = _FARM.store.get_managed_worker_secret(record["worker_id"])
+                except ValueError as exc:
+                    _farm_log.error("Skipping worker %s: %s", record["worker_id"], exc)
+                    continue
                 _FARM.workers[record["worker_id"]] = WorkerConfig(
                     record["worker_id"],
                     record["url"],
-                    _FARM.store.get_managed_worker_secret(record["worker_id"]),
+                    secret,
                     record["workspace"],
                 )
     return _FARM
