@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import asyncio
 import ipaddress
+import logging
 import os
 import re
 import secrets
 import uuid
+
 from urllib.parse import quote, urlsplit
 
 from starlette.background import BackgroundTask
@@ -17,6 +19,7 @@ from starlette.routing import Route
 
 from blender_mcp.utils.blend_thumbnail import extract_thumbnail
 from blender_mcp.utils.farm_workers import MCPWorkerClient, WorkerConfig, validate_worker_destination
+
 from blender_mcp.utils.monitor_history import gpu_history, start_sampler
 from blender_mcp.utils.projects import (
     TrashRefused,
@@ -35,7 +38,23 @@ from blender_mcp.utils.projects import (
     search_workspace,
 )
 
+_log = logging.getLogger("blender_mcp.studio_api")
 _runtime_workers: dict[str, WorkerConfig] = {}
+
+
+def _worker_test_error(exc: BaseException, url: str = "") -> str:
+    """Return a user-readable test-failure message and log the real cause."""
+    _log.error("Worker connection test failed (%s): %s", type(exc).__name__, exc)
+    msg = str(exc).lower()
+    if "401" in msg or "unauthorized" in msg or "forbidden" in msg or "403" in msg:
+        return "Worker rejected the API key — check BLENDER_MCP_WORKER_KEY in the worker's .env and re-enroll."
+    if "blender is not ready" in msg:
+        return "Worker reached but Blender is not running. Start Blender on the worker host."
+    if "blender_farm_worker" in msg or "capability" in msg:
+        return "Authenticated but worker lacks blender_farm_worker tool — wrong image or addon not loaded."
+    if any(w in msg for w in ("connect", "refused", "timeout", "timed out", "unreachable", "name or service")):
+        return f"Could not reach the worker — is it running and reachable at {url}?"
+    return "Worker MCP authentication or capability test failed."
 
 
 def _safe_worker_data(value, secret: str):
@@ -259,10 +278,9 @@ async def connect_worker(request: Request):
                 },
             }
         )
-    except Exception:
-        # Do not return exception text: third-party protocol errors can include request headers.
+    except Exception as _exc:
         return JSONResponse(
-            {"success": False, "error": "Worker MCP authentication or capability test failed."}, status_code=502
+            {"success": False, "error": _worker_test_error(_exc, url)}, status_code=502
         )
 
 
@@ -468,12 +486,12 @@ async def worker_test(request: Request):
             },
             headers={"Cache-Control": "private, no-store"},
         )
-    except Exception:
+    except Exception as _exc:
         farm.store.update_managed_worker(wid, {"enabled": False, "verified": False})
         farm.workers.pop(wid, None)
         farm._clients.pop(wid, None)
         return JSONResponse(
-            {"success": False, "error": "Worker MCP authentication or capability test failed."}, status_code=502
+            {"success": False, "error": _worker_test_error(_exc, config.url)}, status_code=502
         )
 
 
