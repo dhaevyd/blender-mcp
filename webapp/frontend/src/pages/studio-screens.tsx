@@ -123,11 +123,28 @@ function entryTimestamp(entry: WorkspaceEntry, sortBy: SortKey): string {
 }
 
 /** One icon per entry type, shared by the row list and the icon grid. */
+const BLEND_CUBE_SVG =
+  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='1.5'%3E%3Cpath d='M12 2L2 7l10 5 10-5-10-5z'/%3E%3Cpath d='M2 17l10 5 10-5'/%3E%3Cpath d='M2 12l10 5 10-5'/%3E%3C/svg%3E";
+
 function EntryIcon({ entry, size = 20 }: { entry: WorkspaceEntry; size?: number }) {
   if (entry.type === "folder") return <Folder size={size} aria-hidden="true" />;
   if (entry.preview === "image") return <FileImage size={size} aria-hidden="true" />;
   if (entry.preview === "video") return <FileVideo size={size} aria-hidden="true" />;
   if (entry.preview === "text") return <FileCode size={size} aria-hidden="true" />;
+  if (entry.name.toLowerCase().endsWith(".blend")) {
+    const projectId = encodeURIComponent(entry.name);
+    return (
+      <img
+        src={`/api/v1/gallery/projects/${projectId}/thumbnail`}
+        alt={entry.name}
+        width={size}
+        height={size}
+        style={{ objectFit: "cover", borderRadius: 2 }}
+        onError={(e) => { (e.currentTarget as HTMLImageElement).src = BLEND_CUBE_SVG; }}
+        aria-hidden="true"
+      />
+    );
+  }
   return <File size={size} aria-hidden="true" />;
 }
 
