@@ -59,6 +59,7 @@ def _register_farm_tools() -> None:
         mode: str = "copy",
         overwrite: bool = False,
         path: str = "",
+        batch_size: int = 1,
     ) -> dict[str, Any]:
         """Control a distributed Blender render farm across authenticated Blender MCP workers.
 
@@ -88,6 +89,7 @@ def _register_farm_tools() -> None:
                     worker_ids=worker_ids,
                     output_directory=output_directory or None,
                     gallery_project_id=project_id or None,
+                    batch_size=batch_size,
                 )
                 return result
             if operation == "job_status":

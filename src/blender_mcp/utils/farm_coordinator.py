@@ -110,6 +110,11 @@ def _write_project_frame(workspace: Path, project_id: str, job_id: str, frame_na
     return workspace / "projects" / project_id / "renders" / job_id / frame_name
 
 
+_HEARTBEAT_INTERVAL = 30   # seconds between pings
+_HEARTBEAT_TIMEOUT = 10    # seconds to wait for a ping response
+_WORKER_OFFLINE_AFTER = 90 # seconds of silence before marking offline
+
+
 class BlenderFarmCoordinator:
     """MCP-worker coordinator with durable frame state and restart recovery."""
 
@@ -130,6 +135,8 @@ class BlenderFarmCoordinator:
         self._worker_gpu_locks: dict[tuple[str, str, int], asyncio.Lock] = {}
         self._tasks: dict[str, asyncio.Task[None]] = {}
         self._pause_events: dict[str, asyncio.Event] = {}
+        self._worker_last_seen: dict[str, float] = {}
+        self._offline_workers: set[str] = set()
         self.store.recover_interrupted_jobs()
 
     def _client(self, worker_id: str) -> Any:
@@ -167,6 +174,10 @@ class BlenderFarmCoordinator:
         worker_ids: list[str] | None = None,
         output_directory: str | None = None,
         gallery_project_id: str | None = None,
+        batch_size: int = 1,
+        assemble_video: bool = False,
+        video_format: str = "mp4",
+        fps: int = 24,
     ) -> dict[str, Any]:
         source = _workspace_path(self.workspace, project_path)
         if not source.is_file() or source.suffix.lower() not in {".blend", ".zip"}:
@@ -262,6 +273,7 @@ class BlenderFarmCoordinator:
             output_rel = output_directory or f"farm-output/{job_id}"
             output_path = _workspace_path(self.workspace, output_rel)
             output_path.mkdir(parents=True, exist_ok=True)
+        batch_size = max(1, int(batch_size))
         metadata = {
             "project_id": project_id,
             "bundle_sha256": bundle_hash,
@@ -271,6 +283,10 @@ class BlenderFarmCoordinator:
             "prefix": "frame_",
             "frame_start": frame_start,
             "frame_end": frame_end,
+            "batch_size": batch_size,
+            "assemble_video": assemble_video,
+            "video_format": video_format if video_format in {"mp4", "prores"} else "mp4",
+            "fps": max(1, fps),
         }
         self.store.create_job(job_id, str(source.relative_to(self.workspace)), frame_start, frame_end, metadata=metadata)
         event = asyncio.Event()
@@ -295,6 +311,35 @@ class BlenderFarmCoordinator:
             return
         self._tasks[job_id] = asyncio.create_task(self._run_job(job_id), name=f"blender-farm-{job_id}")
 
+    async def _heartbeat_loop(self, worker_ids: list[str], job_id: str) -> None:
+        """Ping workers every 30s; requeue in-progress frames from workers silent for 90s."""
+        import time
+        now = time.monotonic
+        for wid in worker_ids:
+            self._worker_last_seen.setdefault(wid, now())
+        while True:
+            await asyncio.sleep(_HEARTBEAT_INTERVAL)
+            if self.store.get_progress(job_id)["status"] != "running":
+                return
+            for wid in worker_ids:
+                try:
+                    await asyncio.wait_for(
+                        self._client(wid).call_tool("blender_farm_worker", {"operation": "identity"}),
+                        timeout=_HEARTBEAT_TIMEOUT,
+                    )
+                    self._worker_last_seen[wid] = now()
+                    self._offline_workers.discard(wid)
+                except Exception:
+                    silent_for = now() - self._worker_last_seen.get(wid, now())
+                    if silent_for >= _WORKER_OFFLINE_AFTER:
+                        if wid not in self._offline_workers:
+                            logger.warning("Job %s: worker %s offline (silent %.0fs) — requeueing its frames", job_id, wid, silent_for)
+                            self._offline_workers.add(wid)
+                        # Requeue any in-progress frames assigned to this worker.
+                        for record in self.store.get_frame_records(job_id):
+                            if record.get("worker_id") == wid and record.get("status") == "in_progress":
+                                self.store.requeue_frame(job_id, record["frame"])
+
     async def _run_job(self, job_id: str) -> None:
         metadata = self.store.get_job_metadata(job_id)
         await self._recover_worker_outputs(job_id, metadata)
@@ -302,6 +347,21 @@ class BlenderFarmCoordinator:
         worker_ids = metadata["worker_ids"]
         if not pending or not worker_ids:
             return
+        heartbeat = asyncio.create_task(
+            self._heartbeat_loop(worker_ids, job_id), name=f"blender-farm-hb-{job_id}"
+        )
+        try:
+            await self._run_job_inner(job_id, metadata, pending, worker_ids)
+        finally:
+            heartbeat.cancel()
+            try:
+                await heartbeat
+            except asyncio.CancelledError:
+                pass
+
+    async def _run_job_inner(
+        self, job_id: str, metadata: dict[str, Any], pending: list[int], worker_ids: list[str]
+    ) -> None:
         resources = await self._wait_for_gpu_resources(job_id, worker_ids)
         if not resources:
             return
@@ -344,21 +404,32 @@ class BlenderFarmCoordinator:
         for frame in remaining:
             queue.put_nowait(frame)
 
+        _batch_size = int(metadata.get("batch_size", 1))
+
         async def run_gpu(resource: dict[str, Any]) -> None:
             while True:
+                batch: list[int] = []
                 try:
-                    frame = queue.get_nowait()
+                    for _ in range(_batch_size):
+                        batch.append(queue.get_nowait())
                 except asyncio.QueueEmpty:
+                    pass
+                if not batch:
                     return
                 try:
-                    await self._render_assigned(job_id, metadata, resource, [frame])
+                    await self._render_assigned(job_id, metadata, resource, batch)
                 finally:
-                    queue.task_done()
+                    for _ in batch:
+                        queue.task_done()
 
         await asyncio.gather(*(run_gpu(resource) for resource in resources))
 
         # All frames dispatched — clean up the project bundle from every worker.
         await self._cleanup_worker_bundles(job_id, metadata)
+
+        # Optionally stitch frames into a video on the master.
+        if metadata.get("assemble_video"):
+            await self._assemble_video(job_id, metadata)
 
     async def _cleanup_worker_bundles(self, job_id: str, metadata: dict[str, Any]) -> None:
         """Delete the synced project bundle directory from each worker after job completion."""
@@ -512,6 +583,11 @@ class BlenderFarmCoordinator:
         self, job_id: str, metadata: dict[str, Any], resource: dict[str, Any], frames: list[int]
     ) -> None:
         worker_id = resource["worker_id"]
+        # Skip workers the heartbeat has marked offline.
+        if worker_id in self._offline_workers:
+            for frame in frames:
+                self.store.requeue_frame(job_id, frame)
+            return
         gpu_index = resource["index"]
         gpu_name = resource["name"]
         gpu_vendor = resource["backend"]
