@@ -477,7 +477,7 @@ class FarmJobStore:
                 )
             return job_ids
 
-    def retry_failed_frames(self, job_id: str) -> list[int]:
+    def retry_failed_frames(self, job_id: str, max_retries: int = 3) -> list[int]:
         with self._connect() as db:
             job = db.execute("SELECT status FROM farm_jobs WHERE id=?", (job_id,)).fetchone()
             if job is None:
@@ -485,14 +485,22 @@ class FarmJobStore:
             if job["status"] not in ("failed", "running"):
                 raise ValueError(f"cannot retry frames when job is {job['status']}")
             rows = db.execute(
-                "SELECT frame FROM farm_frames WHERE job_id=? AND status='failed' ORDER BY frame", (job_id,)
+                "SELECT frame, attempts FROM farm_frames WHERE job_id=? AND status='failed' ORDER BY frame", (job_id,)
             ).fetchall()
-            frames = [int(row["frame"]) for row in rows]
-            if frames:
+            # Only retry frames that haven't hit the attempt ceiling.
+            frames = [int(row["frame"]) for row in rows if int(row["attempts"]) < max_retries]
+            exhausted = [int(row["frame"]) for row in rows if int(row["attempts"]) >= max_retries]
+            if exhausted:
                 db.execute(
+                    f"UPDATE farm_frames SET error='exceeded max retries ({max_retries})', updated_at=unixepoch('subsec') "
+                    "WHERE job_id=? AND status='failed' AND attempts>=?",
+                    (job_id, max_retries),
+                )
+            if frames:
+                db.executemany(
                     "UPDATE farm_frames SET status='pending', worker_id=NULL, output_path=NULL, error=NULL, updated_at=unixepoch('subsec') "
-                    "WHERE job_id=? AND status='failed'",
-                    (job_id,),
+                    "WHERE job_id=? AND frame=? AND status='failed'",
+                    [(job_id, f) for f in frames],
                 )
                 db.execute(
                     "UPDATE farm_jobs SET status='running', updated_at=unixepoch('subsec') WHERE id=?", (job_id,)
