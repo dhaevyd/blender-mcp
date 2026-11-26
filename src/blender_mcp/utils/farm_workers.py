@@ -178,6 +178,7 @@ def worker_identity(config: WorkerConfig | None = None) -> dict[str, Any]:
     tool_capabilities = ["identity", "project_validation", "render_frame", "frame_manifest", "async_jobs"]
     return {
         "worker_id": worker_id,
+        "display_name": _worker_display_name(worker_id),
         "hostname": socket.gethostname(),
         "platform": platform.platform(),
         "role": mcp_role(),
