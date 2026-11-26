@@ -138,6 +138,8 @@ export default function StudioWorkers({
   }
   useEffect(() => {
     void refresh();
+    const timer = window.setInterval(() => void refresh(), 30_000);
+    return () => window.clearInterval(timer);
   }, []);
 
   // Live logs for the one node whose panel is open; polls every 3 s while it stays open.
