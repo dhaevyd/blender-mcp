@@ -117,6 +117,7 @@ def _worker_compose_yaml(*, app_version: str, name: str, worker_id: str, workspa
         return {
             "image": f"ghcr.io/dhaevyd/blender-mcp:{app_version}",
             "container_name": "blender_mcp-worker",
+            "restart": "unless-stopped",
             "env_file": [".env"],
             "environment": {
                 "MCP_ROLE": "worker",
