@@ -20,6 +20,8 @@ from blender_mcp.utils.farm_workers import MCPWorkerClient, WorkerConfig
 
 logger = logging.getLogger(__name__)
 
+MAX_FRAME_RETRIES = 3
+
 
 def explain_failure(error: str, worker_id: str = "") -> str:
     """Turn a raw worker or network error into a sentence an operator can act on."""
