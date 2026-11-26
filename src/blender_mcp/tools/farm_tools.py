@@ -60,6 +60,7 @@ def _register_farm_tools() -> None:
         overwrite: bool = False,
         path: str = "",
         batch_size: int = 1,
+        priority: int = 0,
     ) -> dict[str, Any]:
         """Control a distributed Blender render farm across authenticated Blender MCP workers.
 
@@ -90,6 +91,7 @@ def _register_farm_tools() -> None:
                     output_directory=output_directory or None,
                     gallery_project_id=project_id or None,
                     batch_size=batch_size,
+                    priority=priority,
                 )
                 return result
             if operation == "job_status":
