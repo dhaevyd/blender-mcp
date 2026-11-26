@@ -116,41 +116,61 @@ export default function StudioJobs() {
     };
   }, [selected, refresh]);
 
-  // SSE: stream live frame progress for the selected job
+  // SSE: stream live frame progress for the selected job via fetch (supports auth headers)
   useEffect(() => {
     if (!selected) return;
-    const headers = dashboardAuthHeaders();
-    const token = headers["Authorization"]?.replace("Bearer ", "") ?? "";
-    const url = `${root}/jobs/${encodeURIComponent(selected)}/stream${token ? `?token=${encodeURIComponent(token)}` : ""}`;
-    const es = new EventSource(url);
-    es.onmessage = (ev) => {
+    const controller = new AbortController();
+    const url = `${root}/jobs/${encodeURIComponent(selected)}/stream`;
+    const terminal = new Set(["done", "failed", "cancelled"]);
+
+    (async () => {
       try {
-        const data = JSON.parse(ev.data) as {
-          status: string;
-          total_frames: number;
-          completed_frames: number;
-          failed_frames: number;
-          percent: number;
-        };
-        setJob((prev) =>
-          prev
-            ? {
-                ...prev,
-                status: data.status,
-                total_frames: data.total_frames,
-                completed: data.completed_frames,
-                failed: data.failed_frames,
-              }
-            : prev,
-        );
-        const terminal = ["done", "failed", "cancelled"];
-        if (terminal.includes(data.status)) es.close();
+        const res = await fetch(url, {
+          headers: dashboardAuthHeaders() as Record<string, string>,
+          signal: controller.signal,
+        });
+        if (!res.ok || !res.body) return;
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buf = "";
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buf += decoder.decode(value, { stream: true });
+          const lines = buf.split("\n");
+          buf = lines.pop() ?? "";
+          for (const line of lines) {
+            if (!line.startsWith("data:")) continue;
+            try {
+              const data = JSON.parse(line.slice(5).trim()) as {
+                status: string;
+                total_frames: number;
+                completed_frames: number;
+                failed_frames: number;
+              };
+              setJob((prev) =>
+                prev
+                  ? {
+                      ...prev,
+                      status: data.status,
+                      total_frames: data.total_frames,
+                      completed: data.completed_frames,
+                      failed: data.failed_frames,
+                    }
+                  : prev,
+              );
+              if (terminal.has(data.status)) return;
+            } catch {
+              // ignore malformed event
+            }
+          }
+        }
       } catch {
-        // ignore parse errors
+        // aborted or network error — silent
       }
-    };
-    es.onerror = () => es.close();
-    return () => es.close();
+    })();
+
+    return () => controller.abort();
   }, [selected]);
 
   useEffect(() => {
