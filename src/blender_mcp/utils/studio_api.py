@@ -857,6 +857,51 @@ async def farm_job_get(request: Request):
     return JSONResponse(job, headers={"Cache-Control": "private, no-store"})
 
 
+async def farm_job_stream(request: Request):
+    from blender_mcp.tools.farm_tools import _coordinator
+
+    job_id = request.path_params["job_id"]
+    farm = _coordinator()
+    try:
+        farm.store.get_progress(job_id)
+    except KeyError:
+        return JSONResponse({"error": "Job not found."}, status_code=404)
+
+    async def _event_generator():
+        import json as _json
+        terminal = {"done", "failed", "cancelled"}
+        while True:
+            try:
+                progress = farm.store.get_progress(job_id)
+            except KeyError:
+                break
+            total = progress.get("total_frames", 0)
+            completed = progress.get("completed_frames", 0)
+            failed = progress.get("failed_frames", 0)
+            status = progress.get("status", "unknown")
+            payload = {
+                "job_id": job_id,
+                "status": status,
+                "total_frames": total,
+                "completed_frames": completed,
+                "failed_frames": failed,
+                "percent": round(completed / total * 100, 1) if total else 0,
+            }
+            yield f"data: {_json.dumps(payload)}\n\n"
+            if status in terminal:
+                break
+            await asyncio.sleep(2)
+
+    return StreamingResponse(
+        _event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
 async def farm_job_action(request: Request):
     from blender_mcp.tools.farm_tools import _coordinator
 
@@ -1037,6 +1082,7 @@ def register_gallery_routes(app):
             Route("/api/v1/farm/jobs", farm_jobs_get, methods=["GET"]),
             Route("/api/v1/farm/jobs", farm_job_submit, methods=["POST"]),
             Route("/api/v1/farm/jobs/{job_id}", farm_job_get, methods=["GET"]),
+            Route("/api/v1/farm/jobs/{job_id}/stream", farm_job_stream, methods=["GET"]),
             Route("/api/v1/farm/jobs/{job_id}/actions", farm_job_action, methods=["POST"]),
             Route("/api/v1/farm/jobs/{job_id}/frames/{frame:int}/download", farm_job_download, methods=["GET"]),
             Route("/api/v1/farm/gpus", farm_gpus_get, methods=["GET"]),

@@ -600,7 +600,15 @@ class BlenderFarmCoordinator:
                         explain_failure(str(exc), worker_id),
                         exc,
                     )
-                    self.store.finish_frame(job_id, frame, success=False, error=str(exc))
+                    records = {r["frame"]: r for r in self.store.get_frame_records(job_id)}
+                    attempts = records.get(frame, {}).get("attempts", 0)
+                    if attempts >= MAX_FRAME_RETRIES:
+                        self.store.finish_frame(
+                            job_id, frame, success=False,
+                            error=f"exceeded max retries ({MAX_FRAME_RETRIES}): {exc}",
+                        )
+                    else:
+                        self.store.finish_frame(job_id, frame, success=False, error=str(exc))
                     break
         return observed_peak_mib or None
 
