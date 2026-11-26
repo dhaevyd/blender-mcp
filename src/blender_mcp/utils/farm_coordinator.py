@@ -7,14 +7,13 @@ import base64
 import hashlib
 import hmac
 import io
+import logging
 import os
 import uuid
 import zipfile
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
-
-import logging
 
 from blender_mcp.utils.farm_state import FarmJobStore
 from blender_mcp.utils.farm_workers import MCPWorkerClient, WorkerConfig
@@ -355,6 +354,27 @@ class BlenderFarmCoordinator:
                     queue.task_done()
 
         await asyncio.gather(*(run_gpu(resource) for resource in resources))
+
+        # All frames dispatched — clean up the project bundle from every worker.
+        await self._cleanup_worker_bundles(job_id, metadata)
+
+    async def _cleanup_worker_bundles(self, job_id: str, metadata: dict[str, Any]) -> None:
+        """Delete the synced project bundle directory from each worker after job completion."""
+        import logging
+        log = logging.getLogger(__name__)
+        project_id = metadata.get("project_id", job_id)
+        bundle_dir = f"farm-projects/{project_id}"
+        for worker_id in metadata.get("worker_ids", []):
+            try:
+                result = await self._client(worker_id).call_tool(
+                    "blender_farm_worker",
+                    {"operation": "files_delete", "file_path": bundle_dir, "recursive": True},
+                    timeout=60,
+                )
+                if not result.get("success"):
+                    log.warning("Job %s: worker %s bundle cleanup failed — %s", job_id, worker_id, result.get("error", "unknown"))
+            except Exception as exc:
+                log.warning("Job %s: worker %s bundle cleanup error — %s", job_id, worker_id, exc)
 
     @staticmethod
     def _gpu_free_threshold(device: dict[str, Any]) -> int:

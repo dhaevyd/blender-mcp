@@ -170,6 +170,9 @@ def _register_farm_worker_tools() -> None:
                 }
 
             if operation == "sync_project":
+                free_mib = shutil.disk_usage(workspace).free // (1024 * 1024)
+                if free_mib < 500:
+                    return {"success": False, "error": f"insufficient disk space: {free_mib} MiB free"}
                 result = _extract_project_bundle(workspace, project_id, bundle_base64, bundle_sha256)
                 result.update({"success": True, "worker_id": os.environ.get("BLENDER_FARM_WORKER_ID", "")})
                 return result
@@ -190,6 +193,9 @@ def _register_farm_worker_tools() -> None:
             if operation == "render_frame":
                 if frame < 0:
                     return {"success": False, "error": "frame must be non-negative"}
+                free_mib = shutil.disk_usage(workspace).free // (1024 * 1024)
+                if free_mib < 500:
+                    return {"success": False, "error": f"insufficient disk space: {free_mib} MiB free"}
                 source = resolve_workspace_path(workspace, project_path)
                 target = resolve_workspace_path(workspace, output_path)
                 if not source.is_file() or source.suffix.lower() != ".blend":
