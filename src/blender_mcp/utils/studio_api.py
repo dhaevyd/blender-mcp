@@ -15,6 +15,7 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse, StreamingResponse
 from starlette.routing import Route
 
+from blender_mcp.utils.blend_thumbnail import extract_thumbnail
 from blender_mcp.utils.farm_workers import MCPWorkerClient, WorkerConfig, validate_worker_destination
 from blender_mcp.utils.monitor_history import gpu_history, start_sampler
 from blender_mcp.utils.projects import (
@@ -572,6 +573,33 @@ async def projects_post(request: Request):
         return JSONResponse({"error": "Could not create workspace project."}, status_code=500)
 
 
+async def project_thumbnail_get(request: Request):
+    from blender_mcp.utils.projects import safe_project, workspace_root
+    project_id = request.path_params["project_id"]
+    try:
+        root = workspace_root()
+        project_dir = safe_project(root, project_id)
+        blend_file = next(
+            (f for f in project_dir.iterdir() if f.suffix.lower() == ".blend" and f.is_file()),
+            None,
+        )
+        if blend_file is None:
+            # Also check if project_id is itself a .blend file at workspace root
+            candidate = root / project_id
+            if candidate.is_file() and candidate.suffix.lower() == ".blend":
+                blend_file = candidate
+        if blend_file is None:
+            return JSONResponse({"error": "No .blend file found for project."}, status_code=404)
+        png = await asyncio.to_thread(extract_thumbnail, blend_file)
+        if png is None:
+            return JSONResponse({"error": "No thumbnail embedded in .blend file."}, status_code=404)
+        return StreamingResponse(iter([png]), media_type="image/png")
+    except (ValueError, FileNotFoundError):
+        return JSONResponse({"error": "Project not found."}, status_code=404)
+    except Exception:
+        return JSONResponse({"error": "Could not extract thumbnail."}, status_code=500)
+
+
 async def assets_get(request: Request):
     try:
         return JSONResponse({"assets": list_assets(request.path_params["project_id"])})
@@ -1101,6 +1129,7 @@ def register_gallery_routes(app):
             Route("/api/v1/gallery/file", workspace_file_get, methods=["GET"]),
             Route("/api/v1/gallery/projects", projects_get, methods=["GET"]),
             Route("/api/v1/gallery/projects", projects_post, methods=["POST"]),
+            Route("/api/v1/gallery/projects/{project_id}/thumbnail", project_thumbnail_get, methods=["GET"]),
             Route("/api/v1/gallery/projects/{project_id}/assets", assets_get, methods=["GET"]),
             Route("/api/v1/gallery/projects/{project_id}/assets/{asset_path:path}", asset_get, methods=["GET"]),
         ]

@@ -61,6 +61,9 @@ def _register_farm_tools() -> None:
         path: str = "",
         batch_size: int = 1,
         priority: int = 0,
+        assemble_video: bool = False,
+        video_format: str = "mp4",
+        fps: int = 24,
     ) -> dict[str, Any]:
         """Control a distributed Blender render farm across authenticated Blender MCP workers.
 
@@ -92,6 +95,9 @@ def _register_farm_tools() -> None:
                     gallery_project_id=project_id or None,
                     batch_size=batch_size,
                     priority=priority,
+                    assemble_video=assemble_video,
+                    video_format=video_format,
+                    fps=fps,
                 )
                 return result
             if operation == "job_status":
