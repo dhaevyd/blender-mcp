@@ -596,6 +596,18 @@ class BlenderFarmCoordinator:
             target.write_bytes(data)
         self.store.finish_frame(job_id, frame, success=True, output_path=str(target.relative_to(self.workspace)))
 
+        # Frame is confirmed on master — delete the source copy from the worker.
+        delete_result = await self._client(worker_id).call_tool(
+            "blender_farm_worker", {"operation": "files_delete", "file_path": worker_path}, timeout=30
+        )
+        if not delete_result.get("success"):
+            # Non-fatal: log the warning but don't fail the frame.
+            import logging
+            logging.getLogger(__name__).warning(
+                "Job %s frame %s: worker %s did not delete %s — %s",
+                job_id, frame, worker_id, worker_path, delete_result.get("error", "unknown error"),
+            )
+
     def job_status(self, job_id: str) -> dict[str, Any]:
         progress = self.store.get_progress(job_id)
         progress["frames"] = self.store.get_frame_records(job_id)
