@@ -139,6 +139,7 @@ class BlenderFarmCoordinator:
         self._offline_workers: set[str] = set()
         self._worker_stats: dict[str, list[float]] = {}
         self._worker_capabilities: dict[str, dict[str, Any]] = {}
+        self._worker_names: dict[str, str] = {}
         self.store.recover_interrupted_jobs()
 
     def _client(self, worker_id: str) -> Any:
@@ -159,8 +160,11 @@ class BlenderFarmCoordinator:
                 if isinstance(caps, dict):
                     self._worker_capabilities[worker.worker_id] = caps
                     logger.info("Worker %s: %s", worker.worker_id, caps.get("capabilities_summary", "unknown"))
+                display_name = info.get("display_name") or worker.worker_id
+                self._worker_names[worker.worker_id] = display_name
                 return {
                     "worker_id": worker.worker_id,
+                    "display_name": display_name,
                     "online": bool(info.get("online", info.get("success", True))),
                     "url": worker.url,
                     "tools": sorted(tool_names),
