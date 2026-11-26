@@ -110,10 +110,46 @@
 
 /* Any block that needs the full row width (edit form, notes, details). */
 .studio-workers .worker-row > .worker-edit,
+.studio-workers .worker-row > .worker-logs,
 .studio-workers .worker-row > .worker-row-note,
 .studio-workers .worker-row > .worker-connection-details {
   grid-column: 1 / -1;
 }
+
+.studio-workers .worker-logs {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 16px 16px;
+  border-top: 1px solid var(--border, rgba(255,255,255,.08));
+}
+
+.studio-workers .worker-logs-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.studio-workers .worker-logs-body {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--studio-surface, #0f1117);
+  font-size: 12px;
+  font-family: ui-monospace, "SF Mono", Consolas, monospace;
+  line-height: 1.6;
+  overflow-x: auto;
+  white-space: pre;
+  max-height: 360px;
+  overflow-y: auto;
+}
+
+.studio-workers .worker-log-line.is-error   { color: #ef5350; }
+.studio-workers .worker-log-line.is-warning { color: #f5b942; }
+.studio-workers .worker-log-line.is-info    { color: inherit; }
+.studio-workers .worker-log-line.is-debug   { opacity: 0.55; }
 
 /* Node cell: dot + label + hostname */
 .studio-workers .worker-node-cell {
