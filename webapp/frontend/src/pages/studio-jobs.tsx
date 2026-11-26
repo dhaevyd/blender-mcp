@@ -116,6 +116,43 @@ export default function StudioJobs() {
     };
   }, [selected, refresh]);
 
+  // SSE: stream live frame progress for the selected job
+  useEffect(() => {
+    if (!selected) return;
+    const headers = dashboardAuthHeaders();
+    const token = headers["Authorization"]?.replace("Bearer ", "") ?? "";
+    const url = `${root}/jobs/${encodeURIComponent(selected)}/stream${token ? `?token=${encodeURIComponent(token)}` : ""}`;
+    const es = new EventSource(url);
+    es.onmessage = (ev) => {
+      try {
+        const data = JSON.parse(ev.data) as {
+          status: string;
+          total_frames: number;
+          completed_frames: number;
+          failed_frames: number;
+          percent: number;
+        };
+        setJob((prev) =>
+          prev
+            ? {
+                ...prev,
+                status: data.status,
+                total_frames: data.total_frames,
+                completed: data.completed_frames,
+                failed: data.failed_frames,
+              }
+            : prev,
+        );
+        const terminal = ["done", "failed", "cancelled"];
+        if (terminal.includes(data.status)) es.close();
+      } catch {
+        // ignore parse errors
+      }
+    };
+    es.onerror = () => es.close();
+    return () => es.close();
+  }, [selected]);
+
   useEffect(() => {
     const controller = new AbortController();
     let timer: number | undefined;
