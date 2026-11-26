@@ -119,13 +119,48 @@ def worker_identity(config: WorkerConfig | None = None) -> dict[str, Any]:
         version = result.stdout.splitlines()[0] if result.returncode == 0 and result.stdout else None
     except (OSError, subprocess.TimeoutExpired):
         version = None
-    gpu_inventory = gpu_inventory_stats()
+    try:
+        gpu_inventory = gpu_inventory_stats()
+    except Exception:
+        gpu_inventory = []
     gpu = [
         f"{device['name']}, {device['memory_total_mib']} MiB"
         for device in gpu_inventory
         if device.get("name") and device.get("memory_total_mib")
     ]
-    capabilities = ["identity", "project_validation", "render_frame", "frame_manifest", "async_jobs"]
+
+    # Build structured render capabilities for enrollment display.
+    gpu_entries = [
+        {
+            "name": d.get("name", "Unknown"),
+            "vendor": d.get("backend", "Unknown"),
+            "index": d.get("index", i),
+            "vram_mib": d.get("memory_total_mib") or 0,
+        }
+        for i, d in enumerate(gpu_inventory)
+        if d.get("name")
+    ]
+    if gpu_entries:
+        parts = [
+            f"{g['name']} {g['vendor']} {round(g['vram_mib'] / 1024, 1)}GB"
+            if g["vram_mib"] >= 1024
+            else f"{g['name']} {g['vendor']} {g['vram_mib']}MB"
+            for g in gpu_entries
+        ]
+        summary = f"{len(gpu_entries)}x GPU ({', '.join(parts)})"
+        render_device = "GPU"
+    else:
+        summary = "CPU only"
+        render_device = "CPU"
+
+    render_capabilities = {
+        "gpu_count": len(gpu_entries),
+        "gpus": gpu_entries,
+        "render_device": render_device,
+        "capabilities_summary": summary,
+    }
+
+    tool_capabilities = ["identity", "project_validation", "render_frame", "frame_manifest", "async_jobs"]
     return {
         "worker_id": worker_id,
         "hostname": socket.gethostname(),
@@ -141,8 +176,9 @@ def worker_identity(config: WorkerConfig | None = None) -> dict[str, Any]:
         "memory_total_bytes": psutil.virtual_memory().total,
         "gpu_devices": gpu,
         "gpu_stats": gpu_inventory,
+        "render_capabilities": render_capabilities,
         "workspace_writable": os.path.isdir(workspace) and os.access(workspace, os.W_OK | os.X_OK),
-        "capabilities": capabilities,
+        "capabilities": tool_capabilities,
     }
 
 
