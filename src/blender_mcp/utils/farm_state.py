@@ -77,6 +77,8 @@ class FarmJobStore:
                 db.execute("ALTER TABLE farm_frames ADD COLUMN gpu_index INTEGER")
             if "started_at" not in frame_columns:
                 db.execute("ALTER TABLE farm_frames ADD COLUMN started_at REAL")
+            if "reassigned_count" not in frame_columns:
+                db.execute("ALTER TABLE farm_frames ADD COLUMN reassigned_count INTEGER NOT NULL DEFAULT 0")
             if "wait_reason" not in columns:
                 db.execute("ALTER TABLE farm_jobs ADD COLUMN wait_reason TEXT")
             db.execute("CREATE TABLE IF NOT EXISTS farm_audit (id INTEGER PRIMARY KEY, at REAL NOT NULL DEFAULT (unixepoch('subsec')), actor TEXT NOT NULL, action TEXT NOT NULL, target TEXT NOT NULL)")
@@ -363,11 +365,27 @@ class FarmJobStore:
             if exists is None:
                 raise KeyError(job_id)
             rows = db.execute(
-                "SELECT frame, status, worker_id, gpu_name, gpu_index, attempts, output_path, error, log, updated_at "
+                "SELECT frame, status, worker_id, gpu_name, gpu_index, attempts, reassigned_count, "
+                "output_path, error, log, updated_at "
                 "FROM farm_frames WHERE job_id=? ORDER BY frame",
                 (job_id,),
             ).fetchall()
             return [dict(row) for row in rows]
+
+    def requeue_frame(self, job_id: str, frame: int) -> None:
+        """Return a frame to pending without incrementing attempts; increments reassigned_count."""
+        with self._connect() as db:
+            job = db.execute("SELECT status FROM farm_jobs WHERE id=?", (job_id,)).fetchone()
+            if job is None:
+                raise KeyError(job_id)
+            if job["status"] == "cancelled":
+                return
+            db.execute(
+                "UPDATE farm_frames SET status='pending', worker_id=NULL, error=NULL, "
+                "reassigned_count=reassigned_count+1, updated_at=unixepoch('subsec') "
+                "WHERE job_id=? AND frame=? AND status='running'",
+                (job_id, frame),
+            )
 
     def get_progress(self, job_id: str) -> dict[str, Any]:
         with self._connect() as db:

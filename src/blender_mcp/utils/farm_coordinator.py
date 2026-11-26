@@ -582,6 +582,14 @@ class BlenderFarmCoordinator:
                     break
                 except asyncio.CancelledError:
                     raise
+                except (TimeoutError, ConnectionError, OSError) as exc:
+                    # Worker unreachable — requeue to another worker, don't count as a render failure.
+                    logger.warning(
+                        "Job %s frame %s: worker %s unreachable, requeueing. Error: %s",
+                        job_id, frame, worker_id, exc,
+                    )
+                    self.store.requeue_frame(job_id, frame)
+                    break
                 except Exception as exc:
                     logger.warning(
                         "Job %s frame %s failed. %s Raw error: %s",
