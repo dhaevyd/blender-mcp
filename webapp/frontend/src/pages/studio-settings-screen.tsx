@@ -3,7 +3,6 @@ import {
   ArrowUpRight,
   ChevronRight,
   HardDrive,
-  LockKeyhole,
   LogOut,
   RefreshCw,
   Server,
