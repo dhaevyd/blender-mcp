@@ -271,10 +271,14 @@ async def farm_settings_get(request: Request):
     if mcp_role() != "master":
         return JSONResponse({"error": "Master-only farm settings."}, status_code=404)
     try:
+        from blender_mcp.server import get_session_ttl_seconds
         from blender_mcp.tools.farm_tools import _coordinator
 
         enabled = _coordinator().store.get_local_rendering_enabled()
-        return JSONResponse({"local_rendering_enabled": enabled}, headers={"Cache-Control": "private, no-store"})
+        return JSONResponse(
+            {"local_rendering_enabled": enabled, "session_ttl_seconds": get_session_ttl_seconds()},
+            headers={"Cache-Control": "private, no-store"},
+        )
     except Exception:
         return JSONResponse({"error": "Could not read farm settings."}, status_code=500)
 
@@ -285,14 +289,33 @@ async def farm_settings_patch(request: Request):
     if mcp_role() != "master":
         return JSONResponse({"error": "Master-only farm settings."}, status_code=404)
     body = await _json_body(request)
-    enabled = body.get("local_rendering_enabled") if body else None
-    if not isinstance(enabled, bool):
+    if not body:
+        return JSONResponse({"error": "Request body required."}, status_code=400)
+
+    updates: dict = {}
+    enabled = body.get("local_rendering_enabled")
+    session_ttl = body.get("session_ttl_seconds")
+
+    if enabled is not None and not isinstance(enabled, bool):
         return JSONResponse({"error": "local_rendering_enabled must be a boolean."}, status_code=400)
+    if session_ttl is not None and (not isinstance(session_ttl, int) or session_ttl < 300):
+        return JSONResponse({"error": "session_ttl_seconds must be an integer >= 300."}, status_code=400)
+
     try:
+        from blender_mcp.server import get_session_ttl_seconds, set_session_ttl_seconds
         from blender_mcp.tools.farm_tools import _coordinator
 
-        _coordinator().store.set_local_rendering_enabled(enabled)
-        return JSONResponse({"local_rendering_enabled": enabled}, headers={"Cache-Control": "private, no-store"})
+        if enabled is not None:
+            _coordinator().store.set_local_rendering_enabled(enabled)
+            updates["local_rendering_enabled"] = enabled
+        if session_ttl is not None:
+            set_session_ttl_seconds(session_ttl)
+            updates["session_ttl_seconds"] = get_session_ttl_seconds()
+
+        if not updates:
+            return JSONResponse({"error": "No recognised fields to update."}, status_code=400)
+
+        return JSONResponse(updates, headers={"Cache-Control": "private, no-store"})
     except Exception:
         return JSONResponse({"error": "Could not save farm settings."}, status_code=500)
 

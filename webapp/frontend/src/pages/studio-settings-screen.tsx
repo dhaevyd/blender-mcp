@@ -83,6 +83,7 @@ export type SettingsScreenProps = {
   notificationsSaveError: boolean;
   eventLog: NotificationLogEntry[];
   onClearEvents: () => void;
+  isMasterRole?: boolean;
 };
 
 const CADENCE_OPTIONS = [12, 30, 60, "manual"] as const;
@@ -129,6 +130,11 @@ export default function SettingsScreen({
   const [localRenderingReady, setLocalRenderingReady] = useState(false);
   const [localRenderingBusy, setLocalRenderingBusy] = useState(false);
   const [localRenderingError, setLocalRenderingError] = useState("");
+  const [sessionTtlSeconds, setSessionTtlSeconds] = useState(900);
+  const [sessionTtlInput, setSessionTtlInput] = useState("");
+  const [sessionTtlBusy, setSessionTtlBusy] = useState(false);
+  const [sessionTtlError, setSessionTtlError] = useState("");
+  const [sessionTtlSaved, setSessionTtlSaved] = useState(false);
 
   useEffect(() => {
     if (!isMaster || !authReady) return;
@@ -136,8 +142,12 @@ export default function SettingsScreen({
     void fetch("/api/v1/farm/settings", { headers: dashboardAuthHeaders(), signal: controller.signal })
       .then(async (response) => {
         if (!response.ok) throw new Error(`Settings unavailable (HTTP ${response.status}).`);
-        const data = (await response.json()) as { local_rendering_enabled?: boolean };
+        const data = (await response.json()) as { local_rendering_enabled?: boolean; session_ttl_seconds?: number };
         setLocalRenderingEnabled(data.local_rendering_enabled !== false);
+        if (typeof data.session_ttl_seconds === "number") {
+          setSessionTtlSeconds(data.session_ttl_seconds);
+          setSessionTtlInput(String(Math.round(data.session_ttl_seconds / 60)));
+        }
         setLocalRenderingReady(true);
       })
       .catch((cause) => {
@@ -164,6 +174,40 @@ export default function SettingsScreen({
       setLocalRenderingError(cause instanceof Error ? cause.message : "Could not save farm settings.");
     } finally {
       setLocalRenderingBusy(false);
+    }
+  }
+
+  async function updateSessionTtl() {
+    const minutes = parseInt(sessionTtlInput, 10);
+    if (!Number.isFinite(minutes) || minutes < 5) {
+      setSessionTtlError("Minimum is 5 minutes.");
+      return;
+    }
+    if (minutes > 10080) {
+      setSessionTtlError("Maximum is 7 days (10080 minutes).");
+      return;
+    }
+    setSessionTtlBusy(true);
+    setSessionTtlError("");
+    setSessionTtlSaved(false);
+    try {
+      const response = await fetch("/api/v1/farm/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", ...dashboardAuthHeaders() },
+        body: JSON.stringify({ session_ttl_seconds: minutes * 60 }),
+      });
+      if (!response.ok) throw new Error(`Could not save setting (HTTP ${response.status}).`);
+      const data = (await response.json()) as { session_ttl_seconds?: number };
+      if (typeof data.session_ttl_seconds === "number") {
+        setSessionTtlSeconds(data.session_ttl_seconds);
+        setSessionTtlInput(String(Math.round(data.session_ttl_seconds / 60)));
+      }
+      setSessionTtlSaved(true);
+      setTimeout(() => setSessionTtlSaved(false), 3000);
+    } catch (cause) {
+      setSessionTtlError(cause instanceof Error ? cause.message : "Could not save session TTL.");
+    } finally {
+      setSessionTtlBusy(false);
     }
   }
   const diskAvailable = system?.disk_scope === "workspace filesystem";
@@ -449,6 +493,43 @@ export default function SettingsScreen({
               </span>
               <span className="page-muted">{sessionCopy}</span>
             </div>
+            {isMaster && authReady && (
+              <div className="settings-session-ttl">
+                <label className="page-kicker settings-ttl-label" htmlFor="settings-ttl-input">
+                  Session duration (minutes)
+                </label>
+                <div className="settings-ttl-row">
+                  <input
+                    id="settings-ttl-input"
+                    type="number"
+                    className="page-input settings-ttl-input"
+                    min={5}
+                    max={10080}
+                    value={sessionTtlInput}
+                    onChange={(e) => { setSessionTtlInput(e.target.value); setSessionTtlSaved(false); }}
+                    onKeyDown={(e) => { if (e.key === "Enter") void updateSessionTtl(); }}
+                    disabled={sessionTtlBusy}
+                    aria-describedby="settings-ttl-hint"
+                  />
+                  <button
+                    type="button"
+                    className="page-btn is-sm"
+                    onClick={() => void updateSessionTtl()}
+                    disabled={sessionTtlBusy || sessionTtlInput === String(Math.round(sessionTtlSeconds / 60))}
+                  >
+                    {sessionTtlBusy ? "Saving…" : sessionTtlSaved ? "Saved" : "Apply"}
+                  </button>
+                </div>
+                <p id="settings-ttl-hint" className="page-muted">
+                  Current: {Math.round(sessionTtlSeconds / 60)} min. Range 5–10080 (7 days). Takes effect on the next login.
+                </p>
+                {sessionTtlError && (
+                  <p className="page-note is-bad settings-error" role="alert">
+                    {sessionTtlError}
+                  </p>
+                )}
+              </div>
+            )}
             {signOutError && (
               <p className="page-note is-bad settings-error" role="alert">
                 {signOutError}

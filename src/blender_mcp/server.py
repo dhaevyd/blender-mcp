@@ -114,7 +114,18 @@ from starlette.responses import FileResponse, HTMLResponse, JSONResponse, PlainT
 from starlette.routing import Route
 
 _DASH_COOKIE = "blender_dash_session"
-_DASH_SESSION_SECONDS = 15 * 60
+_DASH_SESSION_SECONDS = int(os.environ.get("BLENDER_DASH_SESSION_SECONDS", str(15 * 60)))
+_DASH_SESSION_SECONDS_MIN = 5 * 60   # 5 minutes
+_DASH_SESSION_SECONDS_MAX = 7 * 24 * 60 * 60  # 7 days
+
+
+def get_session_ttl_seconds() -> int:
+    return _DASH_SESSION_SECONDS
+
+
+def set_session_ttl_seconds(value: int) -> None:
+    global _DASH_SESSION_SECONDS
+    _DASH_SESSION_SECONDS = max(_DASH_SESSION_SECONDS_MIN, min(_DASH_SESSION_SECONDS_MAX, int(value)))
 
 
 def _api_key_env_name() -> str:

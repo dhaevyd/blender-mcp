@@ -400,3 +400,24 @@
 .settings-event.is-warn { --toast-accent: #f5b942; }
 .settings-event.is-bad { --toast-accent: #ef5350; }
 .settings-event.is-info { --toast-accent: #5aa9ff; }
+.settings-session-ttl {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border, rgba(255,255,255,.08));
+}
+
+.settings-ttl-label {
+  display: block;
+  margin-bottom: 8px;
+}
+
+.settings-ttl-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.settings-ttl-input {
+  width: 100px;
+  flex-shrink: 0;
+}
