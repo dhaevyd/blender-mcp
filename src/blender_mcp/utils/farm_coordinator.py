@@ -780,6 +780,13 @@ class BlenderFarmCoordinator:
                     "avg_seconds": round(sum(times) / len(times), 2),
                 }
         progress["worker_utilization"] = worker_utilization
+        # Include video output path if assembly completed.
+        try:
+            meta = self.store.get_job_metadata(job_id)
+            if "video_output_path" in meta:
+                progress["video_output_path"] = meta["video_output_path"]
+        except KeyError:
+            pass
         return progress
 
     def list_jobs(self, limit: int = 20) -> list[dict[str, Any]]:
