@@ -38,6 +38,7 @@ export default function StudioThemeToggle() {
   return (
     <button
       type="button"
+      className="icon-button"
       onClick={toggleTheme}
       aria-label={`Switch to ${target} theme`}
       data-tooltip={`Switch to ${target} theme`}

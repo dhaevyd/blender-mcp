@@ -85,6 +85,15 @@ export default function StudioJobs() {
   const [frameStart, setFrameStart] = useState(1);
   const [frameEnd, setFrameEnd] = useState(1);
   useEffect(() => {
+    if (!selected) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setSelected("");
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [selected]);
+
+  useEffect(() => {
     const controller = new AbortController();
     const { signal } = controller;
     let timer: number | undefined;

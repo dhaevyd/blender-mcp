@@ -1190,6 +1190,14 @@ export default function StudioDashboard() {
     window.scrollTo(0, 0);
   }, [screen]);
   const [showConnect, setShowConnect] = useState(() => !getDashboardKey());
+  useEffect(() => {
+    if (!showConnect) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setShowConnect(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [showConnect]);
   const [draftKey, setDraftKey] = useState("");
   const [authError, setAuthError] = useState("");
   const [refreshing, setRefreshing] = useState(false);
