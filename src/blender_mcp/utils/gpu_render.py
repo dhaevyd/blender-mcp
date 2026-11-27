@@ -182,9 +182,7 @@ def ensure_gpu_used(output: str | None, *, strict: bool | None = None) -> dict:
         return {"device": "UNKNOWN"}
     used = str(report.get("device", "")).upper()
     if want_gpu and used != "GPU":
-        raise GpuRenderError(
-            f"GPU rendering was required but Blender rendered on {used or 'an unknown device'}"
-        )
+        raise GpuRenderError(f"GPU rendering was required but Blender rendered on {used or 'an unknown device'}")
     return report
 
 

@@ -50,7 +50,7 @@ async def export_for_platform(
     asset_id: str,
     target_platform: str,  # "unity", "resonite", "vrchat", "unreal", etc.
     optimization_preset: str = "automatic",
-    quality_level: str = "high"
+    quality_level: str = "high",
 ) -> Dict[str, Any]:
     """
     Export asset to target platform with automatic optimizations.
@@ -228,13 +228,13 @@ PLATFORM_OPTIMIZATIONS = {
         "material_limit": 8,
         "bone_limit": 256,
         "texture_size_max": 2048,
-        "auto_actions": ["generate_lods", "setup_physbones", "optimize_materials"]
+        "auto_actions": ["generate_lods", "setup_physbones", "optimize_materials"],
     },
     "resonite": {
         "polygon_limit": 100000,
         "material_limit": 16,
-        "auto_actions": ["add_protoflux", "setup_collision", "generate_thumbnails"]
-    }
+        "auto_actions": ["add_protoflux", "setup_collision", "generate_thumbnails"],
+    },
 }
 ```
 

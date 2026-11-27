@@ -1,4 +1,5 @@
 """Role-specific inbound API key behavior."""
+
 from blender_mcp import server
 
 
@@ -107,7 +108,17 @@ def test_registered_worker_routes_require_role_selected_key(monkeypatch, tmp_pat
     monkeypatch.setenv("BLENDER_MCP_WORKER_KEY", "dummy-worker-key")
     monkeypatch.setenv("BLENDER_MCP_API_KEY", "dummy-master-key")
     farm = farm_tools.BlenderFarmCoordinator(tmp_path, tmp_path / "farm.sqlite3", [])
-    farm.store.save_managed_worker({"worker_id": "w", "name": "worker", "url": "http://10.0.0.1:10849/mcp", "workspace": "/workspace", "slots": 1, "enabled": False}, "dummy-key")
+    farm.store.save_managed_worker(
+        {
+            "worker_id": "w",
+            "name": "worker",
+            "url": "http://10.0.0.1:10849/mcp",
+            "workspace": "/workspace",
+            "slots": 1,
+            "enabled": False,
+        },
+        "dummy-key",
+    )
     monkeypatch.setattr(farm_tools, "_FARM", farm)
     app = Starlette(middleware=[Middleware(server._ApiKeyMiddleware)])
     register_gallery_routes(app)

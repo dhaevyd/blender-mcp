@@ -82,7 +82,7 @@ def _list_tools_for_role(role: str | None) -> dict[str, bool]:
         "tools = [t.name for t in asyncio.run(app.list_tools())]\n"
         "print(json.dumps({'farm': 'blender_farm' in tools, 'worker': 'blender_farm_worker' in tools}))\n"
     )
-    result = subprocess.run(
+    result = subprocess.run(  # noqa: S603
         [sys.executable, "-c", code],
         env=env,
         capture_output=True,

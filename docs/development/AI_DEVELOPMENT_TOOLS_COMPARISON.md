@@ -112,6 +112,7 @@ from fastmcp.tools import Tool  # ✅ Correct import location
 
 app = FastMCP("server", instructions="...")  # ✅ Correct parameter name
 
+
 @app.tool()  # ✅ Correct decorator pattern
 async def my_tool() -> Dict[str, Any]:
     return {"result": "data"}
@@ -123,6 +124,7 @@ async def my_tool() -> Dict[str, Any]:
 from fastmcp import FastMCP, Tool  # ❌ Old import pattern
 
 app = FastMCP("server", description="...")  # ❌ Old parameter name
+
 
 @tool  # ❌ Undefined decorator
 def my_tool():  # ❌ Missing async, return type

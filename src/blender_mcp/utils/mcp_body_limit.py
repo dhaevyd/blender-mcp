@@ -14,6 +14,7 @@ import os
 
 try:
     from mcp.server.transport_security import RequestBodyLimitMiddleware as _RequestBodyLimitMiddleware
+
     RequestBodyLimitMiddleware = _RequestBodyLimitMiddleware
 except ImportError:
     RequestBodyLimitMiddleware = None  # type: ignore[assignment,misc]

@@ -101,12 +101,7 @@ class TestSyncMonitoring:          # 2 tests - observability
 **API:**
 ```python
 # Initialize
-monitor = SyncHealthMonitor(
-    project_path="/path/to/files",
-    stall_timeout=60,
-    check_interval=10,
-    max_recovery_attempts=3
-)
+monitor = SyncHealthMonitor(project_path="/path/to/files", stall_timeout=60, check_interval=10, max_recovery_attempts=3)
 
 # Start scan
 monitor.start_scan()
@@ -165,9 +160,7 @@ try:
 except PermissionError as e:
     logger.error("scan_permission_denied", error=str(e))
 except Exception as e:
-    logger.error("scan_failed", 
-                error=str(e),
-                traceback=traceback.format_exc())
+    logger.error("scan_failed", error=str(e), traceback=traceback.format_exc())
 ```
 
 ---
@@ -225,6 +218,7 @@ async def _monitor_loop(self):
 async def sync_status() -> str:
     """Get detailed sync status with diagnostics."""
     return monitor.format_health_report()
+
 
 @mcp.tool()
 async def sync_health_check() -> dict:
@@ -331,12 +325,9 @@ except SpecificError as e:
 # Users need feedback:
 for i, item in enumerate(items):
     process(item)
-    
+
     if i % 10 == 0:  # Log every 10 items
-        logger.info("progress", 
-                   current=i,
-                   total=len(items),
-                   percent=i/len(items)*100)
+        logger.info("progress", current=i, total=len(items), percent=i / len(items) * 100)
 ```
 
 ### 3. **Health Checks Catch Bugs**
@@ -349,7 +340,7 @@ async def health_check():
         "healthy": system.is_healthy(),
         "state": system.state,
         "errors": system.errors,
-        "recommendations": system.get_recommendations()
+        "recommendations": system.get_recommendations(),
     }
 ```
 

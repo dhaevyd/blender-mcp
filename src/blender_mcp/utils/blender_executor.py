@@ -23,6 +23,40 @@ from ..exceptions import BlenderNotFoundError, BlenderScriptError
 # Type variable for the BlenderExecutor class
 T = TypeVar("T", bound="BlenderExecutor")
 
+# BLENDER-003: Only pass a safe subset of env vars to Blender subprocesses
+_BLENDER_ENV_ALLOWLIST = {
+    "PATH",
+    "HOME",
+    "USER",
+    "LOGNAME",
+    "SHELL",
+    "TERM",
+    "TMPDIR",
+    "TEMP",
+    "TMP",
+    "DISPLAY",
+    "WAYLAND_DISPLAY",
+    "XDG_RUNTIME_DIR",
+    "LANG",
+    "LC_ALL",
+    "LC_CTYPE",
+    "BLENDER_USER_CONFIG",
+    "BLENDER_USER_SCRIPTS",
+    "BLENDER_SYSTEM_SCRIPTS",
+    "BLENDER_SYSTEM_DATAFILES",
+    "BLENDER_EXECUTABLE",
+    "CUDA_VISIBLE_DEVICES",
+    "ROCR_VISIBLE_DEVICES",
+    "GPU_DEVICE_ORDINAL",
+    "PYTHONPATH",
+    "PYTHONHOME",
+}
+
+
+def _safe_blender_env() -> dict[str, str]:
+    return {k: v for k, v in os.environ.items() if k in _BLENDER_ENV_ALLOWLIST}
+
+
 # Global instance of BlenderExecutor
 _blender_executor_instance = None
 
@@ -145,7 +179,7 @@ class BlenderExecutor:
         # Check if the executable is in PATH
         for name in blender_names:
             try:
-                result = subprocess.run([name, "--version"], capture_output=True, text=True, timeout=5)
+                result = subprocess.run([name, "--version"], capture_output=True, text=True, timeout=5)  # noqa: S603
                 if result.returncode == 0:
                     self.blender_path = Path(shutil.which(name)).resolve()
                     logger.info(f"Found Blender in PATH: {self.blender_path}")
@@ -186,7 +220,7 @@ class BlenderExecutor:
     def _validate_blender_version(self) -> None:
         """Validate the Blender version and set the version attribute."""
         try:
-            result = subprocess.run([str(self.blender_path), "--version"], capture_output=True, text=True, timeout=10)
+            result = subprocess.run([str(self.blender_path), "--version"], capture_output=True, text=True, timeout=10)  # noqa: S603
 
             if result.returncode == 0 and "Blender" in result.stdout:
                 version_line = result.stdout.split("\n")[0]
@@ -251,7 +285,7 @@ except Exception as e:
             blender_cmd.extend(["--python", test_script_path, "--"])
 
             logger.debug(f"Running command: {' '.join(blender_cmd)}")
-            result = subprocess.run(
+            result = subprocess.run(  # noqa: S603
                 blender_cmd, capture_output=True, text=True, timeout=60, check=False, stdin=subprocess.DEVNULL
             )
 
@@ -287,7 +321,10 @@ except Exception as e:
         if timeout is None:
             timeout = self.process_timeout
 
-        script_id = script_name or f"script_{int(time.time() * 1000)}"
+        raw_id = script_name or f"script_{int(time.time() * 1000)}"
+        import re as _re
+
+        script_id = _re.sub(r"[^A-Za-z0-9_-]", "_", raw_id)[:64] or "script"  # BLENDER-004
 
         try:
             logger.info(f"Executing Blender script: {script_id} (timeout: {timeout}s)")
@@ -343,12 +380,15 @@ except Exception as e:
 
     def _wrap_script_with_error_handling(self, script: str, script_id: str) -> str:
         """Wrap user script with comprehensive error handling."""
-        return f'''
+        import json
+
+        safe_id = json.dumps(script_id)  # BLENDER-004: safe embedding
+        return f"""
 import sys
 import traceback
 import bpy
 
-SCRIPT_ID = "{script_id}"
+SCRIPT_ID = {safe_id}
 
 print(f"BLENDER_SCRIPT_START: {{SCRIPT_ID}}")
 
@@ -362,7 +402,7 @@ except Exception as user_error:
     print(f"BLENDER_SCRIPT_ERROR: {{SCRIPT_ID}} - {{str(user_error)}}")
     print(f"BLENDER_SCRIPT_TRACEBACK: {{SCRIPT_ID}} - {{traceback.format_exc()}}")
     sys.exit(1)
-'''
+"""
 
     def _indent_script(self, script: str, spaces: int) -> str:
         """Indent script lines for proper nesting."""
@@ -397,7 +437,7 @@ except Exception as user_error:
                 [
                     "--background",  # No GUI
                     "--factory-startup",  # Clean startup
-                    "--enable-autoexec",  # Allow script execution
+                    "--disable-autoexec",  # BLENDER-003: Disable autoexec for security
                 ]
             )
         else:
@@ -405,7 +445,7 @@ except Exception as user_error:
             cmd.extend(
                 [
                     "--factory-startup",  # Clean startup
-                    "--enable-autoexec",  # Allow script execution
+                    "--disable-autoexec",  # BLENDER-003: Disable autoexec for security
                 ]
             )
 
@@ -436,7 +476,7 @@ except Exception as user_error:
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
                 cwd=self.temp_dir,
-                env=os.environ.copy(),
+                env=_safe_blender_env(),  # BLENDER-003: filtered env
             )
 
             logger.debug(f"🚀 Started Blender process PID: {process.pid} for script: {script_id}")

@@ -504,7 +504,9 @@ async def _validate_construction_script(script: str) -> ScriptValidationResult:
 
     errors = []
     warnings = []
-    security_score = 100
+    # BLENDER-010: Start at 40 — this is a heuristic regex check, not a full sandbox.
+    # A passing score does NOT guarantee the script is safe; treat it as "no obvious issues found".
+    security_score = 40
     complexity_score = 0
 
     try:

@@ -228,7 +228,9 @@ async def test_headless_run_prepends_gpu_setup(monkeypatch):
     """A plain agent script gets the shared GPU setup before its own body."""
     monkeypatch.delenv("MCP_RENDER_REQUIRE_GPU", raising=False)
     scene = FakeScene()
-    executor = install_executor(monkeypatch, FakeExecutor(bpy_module=make_bpy(scene, FakeCyclesPreferences(gpu_devices()))))
+    executor = install_executor(
+        monkeypatch, FakeExecutor(bpy_module=make_bpy(scene, FakeCyclesPreferences(gpu_devices())))
+    )
 
     result = await execute_bpy_script(USER_SCRIPT, script_name="agent_render", prefer_session=False)
 
@@ -340,7 +342,9 @@ async def test_no_injection_when_no_headless_fallback_is_allowed(monkeypatch):
 async def test_script_with_gpu_marker_is_not_injected_twice(monkeypatch, body):
     monkeypatch.delenv("MCP_RENDER_REQUIRE_GPU", raising=False)
     script = f"# {body}\nimport bpy\nprint('already configured')\n"
-    executor = install_executor(monkeypatch, FakeExecutor(bpy_module=make_bpy(FakeScene(), FakeCyclesPreferences(gpu_devices()))))
+    executor = install_executor(
+        monkeypatch, FakeExecutor(bpy_module=make_bpy(FakeScene(), FakeCyclesPreferences(gpu_devices())))
+    )
 
     result = await execute_bpy_script(script, script_name="agent_render", prefer_session=False)
 
@@ -371,7 +375,11 @@ async def test_error_line_numbers_point_at_the_original_source(monkeypatch):
 
     assert result["success"] is False
     assert "kaboom from the agent script" in result["error"]
-    refs = [int(line) for file, line in re.findall(r'File "([^"]+)", line (\d+)', result["error"]) if "broken_script" in file]
+    refs = [
+        int(line)
+        for file, line in re.findall(r'File "([^"]+)", line (\d+)', result["error"])
+        if "broken_script" in file
+    ]
     assert refs == [4], f"expected the caller's line 4, got references {refs} in:\n{result['error']}"
 
 

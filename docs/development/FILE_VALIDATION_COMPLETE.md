@@ -156,29 +156,26 @@ async def scan_files():
 from file_validator import FileValidator
 
 validator = FileValidator(
-    allow_empty=True,           # Warn but continue
-    strict_frontmatter=False    # Lenient YAML
+    allow_empty=True,  # Warn but continue
+    strict_frontmatter=False,  # Lenient YAML
 )
+
 
 async def scan_files():
     for file_path in files:
         # Validate first
         result = validator.validate_file(file_path)
-        
+
         if not result.is_valid:
             # Log and skip safely
-            logger.warning("skipping_invalid_file",
-                          path=file_path,
-                          errors=result.errors)
+            logger.warning("skipping_invalid_file", path=file_path, errors=result.errors)
             sync_monitor.metrics.files_skipped += 1
             continue
-        
+
         # Log warnings
         for warning in result.warnings:
-            logger.info("file_warning",
-                       path=file_path,
-                       warning=warning)
-        
+            logger.info("file_warning", path=file_path, warning=warning)
+
         # Safe to process - validated content!
         process(result.content, result.frontmatter)
         sync_monitor.update_scan_progress(i + 1)

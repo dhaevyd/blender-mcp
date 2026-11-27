@@ -177,7 +177,7 @@ async def _exec_in_blender_session(script: str, script_name: str = "exec", timeo
 
 def _spawn_fleet_script(launch_script: str, repo_path: str, env: Dict[str, str]) -> subprocess.Popen:
     """Launch a Fleet PowerShell script without shell interpretation."""
-    return subprocess.Popen(
+    return subprocess.Popen(  # noqa: S603
         ["powershell.exe", "-ExecutionPolicy", "Bypass", "-File", launch_script],
         cwd=repo_path,
         env=env,
@@ -208,11 +208,41 @@ def _register_fleet_api(app):
             if os.name != "nt":
                 return JSONResponse({"error": "Fleet PowerShell launch is only supported on Windows."}, status_code=501)
 
-            launch_script = os.path.join(req.repo_path, "start.ps1")
-            if not os.path.exists(launch_script):
-                return JSONResponse({"error": f"Launch script not found: {launch_script}"}, status_code=404)
+            # BLENDER-009: Validate repo_path is an absolute path and doesn't escape expected scope
+            import re as _re
 
-            _spawn_fleet_script(launch_script, req.repo_path, {**os.environ, **req.env})
+            repo_path = os.path.realpath(req.repo_path)
+            if not os.path.isabs(repo_path):
+                return JSONResponse({"error": "repo_path must be an absolute path"}, status_code=400)
+
+            # BLENDER-009: Filter env keys — block dangerous overrides
+            _BLOCKED_ENV_KEYS = {
+                "PATH",
+                "PATHEXT",
+                "LD_PRELOAD",
+                "LD_LIBRARY_PATH",
+                "DYLD_INSERT_LIBRARIES",
+                "PYTHONSTARTUP",
+                "PYTHONPATH",
+                "COMSPEC",
+                "SystemRoot",
+                "SystemDrive",
+                "TEMP",
+                "TMP",
+                "PSModulePath",
+                "PSExecutionPolicyPreference",
+            }
+            filtered_env = {
+                k: v
+                for k, v in req.env.items()
+                if _re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", k) and k not in _BLOCKED_ENV_KEYS
+            }
+
+            launch_script = os.path.join(repo_path, "start.ps1")
+            if not os.path.exists(launch_script):
+                return JSONResponse({"error": "Launch script not found"}, status_code=404)
+
+            _spawn_fleet_script(launch_script, repo_path, {**os.environ, **filtered_env})
 
             return JSONResponse(
                 {
@@ -459,6 +489,11 @@ def _load_script_collection(category: str) -> List[Dict[str, Any]]:
     Falls back to empty list if the file doesn't exist.
     Available categories: robots, furniture, rooms, vehicles
     """
+    import re as _re
+
+    # BLENDER-008: Validate category to prevent path traversal
+    if not _re.match(r"^[A-Za-z0-9_-]{1,64}$", category):
+        raise ValueError(f"Invalid script category: {category!r}")
     # data/scripts/ lives two directories above this file (src/blender_mcp/app.py)
     data_dir = Path(__file__).parent.parent.parent / "data" / "scripts"
     script_file = data_dir / f"{category}.json"

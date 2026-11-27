@@ -96,13 +96,13 @@ For more information, visit: https://github.com/sandraschi/blender-mcp
             return
 
         if args.http:
-            # Run HTTP server
+            # Run HTTP server — must use asgi_app (includes _ApiKeyMiddleware) not bare app (BLENDER-007)
             logger.info(f"Starting HTTP server on {args.host}:{args.port}")
             import uvicorn
 
-            from blender_mcp.server import app
+            from blender_mcp.server import asgi_app
 
-            uvicorn.run(app, host=args.host, port=args.port, log_level="debug" if args.debug else "info")
+            uvicorn.run(asgi_app, host=args.host, port=args.port, log_level="debug" if args.debug else "info")
         else:
             # Run stdio mode (default for MCP clients)
             logger.info("Starting MCP server in stdio mode")
@@ -191,7 +191,7 @@ def check_blender_installation():
 
         # Try to get version
         try:
-            result = subprocess.run([blender_path, "--version"], capture_output=True, text=True, timeout=10)
+            result = subprocess.run([blender_path, "--version"], capture_output=True, text=True, timeout=10)  # noqa: S603
 
             if result.returncode == 0:
                 # Extract version from first line

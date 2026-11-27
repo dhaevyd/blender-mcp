@@ -198,8 +198,18 @@ def test_restore_refuses_when_something_occupies_the_path(workspace):
 
 
 def test_restore_rejects_ids_that_are_not_plain_entry_names(workspace):
-    for bad in ("", ".", "..", "../x", "20260101T000000Z-abcdef12/../x", "20260101T000000Z-ABCDEF12",
-                "20260101T000000Z-abcdef1", "20260101T000000Z-abcdef12\x00", "/etc", "a" * 200):
+    for bad in (
+        "",
+        ".",
+        "..",
+        "../x",
+        "20260101T000000Z-abcdef12/../x",
+        "20260101T000000Z-ABCDEF12",
+        "20260101T000000Z-abcdef1",
+        "20260101T000000Z-abcdef12\x00",
+        "/etc",
+        "a" * 200,
+    ):
         with pytest.raises(ValueError):
             restore_from_trash(workspace, bad)
     with pytest.raises(FileNotFoundError):
@@ -211,8 +221,15 @@ def test_restore_refuses_metadata_that_points_outside_the_workspace(workspace, t
     entry_dir.mkdir(parents=True)
     (entry_dir / "escape.txt").write_text("payload", encoding="utf-8")
     (entry_dir / "entry.json").write_text(
-        json.dumps({"original_path": "../escaped.txt", "name": "escape.txt", "type": "file",
-                    "size": 7, "deleted_at": datetime.now(UTC).isoformat()}),
+        json.dumps(
+            {
+                "original_path": "../escaped.txt",
+                "name": "escape.txt",
+                "type": "file",
+                "size": 7,
+                "deleted_at": datetime.now(UTC).isoformat(),
+            }
+        ),
         encoding="utf-8",
     )
 
@@ -230,9 +247,23 @@ def test_restore_refuses_metadata_that_points_outside_the_workspace(workspace, t
 
 @pytest.mark.parametrize(
     "bad",
-    ["", ".", ".trash", ".trash/20260101T000000Z-abcdef12", ".trash/entry.json",
-     "..", "../escape", "Folder/../../escape", "/etc/passwd", "/", "Folder//a.txt",
-     "Folder/", "\\etc\\passwd", "Folder/a.txt\x00", ".hidden"],
+    [
+        "",
+        ".",
+        ".trash",
+        ".trash/20260101T000000Z-abcdef12",
+        ".trash/entry.json",
+        "..",
+        "../escape",
+        "Folder/../../escape",
+        "/etc/passwd",
+        "/",
+        "Folder//a.txt",
+        "Folder/",
+        "\\etc\\passwd",
+        "Folder/a.txt\x00",
+        ".hidden",
+    ],
 )
 def test_delete_refuses_root_trash_and_escaping_paths(workspace, bad, tmp_path):
     canary = tmp_path / "canary.txt"
@@ -452,8 +483,9 @@ def test_delete_and_restore_routes_round_trip(workspace, monkeypatch):
         body = response.json()
         assert set(body) == {"trash_id", "original_path", "name", "type"}
         assert not (workspace / "still.png").exists()
-        assert "still.png" not in {entry["name"] for entry in client.get(
-            "/api/v1/gallery/browse", headers=AUTH).json()["entries"]}
+        assert "still.png" not in {
+            entry["name"] for entry in client.get("/api/v1/gallery/browse", headers=AUTH).json()["entries"]
+        }
 
         restored = client.post("/api/v1/gallery/restore", json={"trash_id": body["trash_id"]}, headers=AUTH)
         assert restored.status_code == 200
@@ -470,9 +502,7 @@ def test_recycle_bin_routes_are_authenticated_and_permanent_delete_works(workspa
         assert listed.status_code == 200
         assert listed.json()["entries"][0]["trash_id"] == deleted["trash_id"]
         assert client.post("/api/v1/gallery/trash/delete", json={"trash_id": "bad"}, headers=AUTH).status_code == 400
-        result = client.post(
-            "/api/v1/gallery/trash/delete", json={"trash_id": deleted["trash_id"]}, headers=AUTH
-        )
+        result = client.post("/api/v1/gallery/trash/delete", json={"trash_id": deleted["trash_id"]}, headers=AUTH)
         assert result.status_code == 200
         assert result.json() == {"deleted": True}
         assert client.get("/api/v1/gallery/trash", headers=AUTH).json()["entries"] == []

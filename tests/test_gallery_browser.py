@@ -34,15 +34,32 @@ def workspace(monkeypatch, tmp_path):
 
 def test_browser_lists_distinct_root_entries_and_empty_directories(workspace):
     entries = browse_workspace("")
-    assert {
-        "Empty", "Nested", "scene.blend", "still.png", "clip.mp4", "photo.jpg", "notes.log"
-    } <= {entry["name"] for entry in entries}
+    assert {"Empty", "Nested", "scene.blend", "still.png", "clip.mp4", "photo.jpg", "notes.log"} <= {
+        entry["name"] for entry in entries
+    }
     assert browse_workspace("Empty") == []
     assert [entry["path"] for entry in browse_workspace("Nested")] == ["Nested/inner.py"]
     assert all("size" in entry and "modified" in entry and "type" in entry for entry in entries)
 
 
-@pytest.mark.parametrize("bad", ["/etc/passwd", "../secret", "Nested/../notes.log", "./notes.log", "Nested//inner.py", "Nested/.", "\\secret", "notes\x00.log", "notes\n.log", "notes\x85.log", ".private", ".env", "Nested/.hidden"])
+@pytest.mark.parametrize(
+    "bad",
+    [
+        "/etc/passwd",
+        "../secret",
+        "Nested/../notes.log",
+        "./notes.log",
+        "Nested//inner.py",
+        "Nested/.",
+        "\\secret",
+        "notes\x00.log",
+        "notes\n.log",
+        "notes\x85.log",
+        ".private",
+        ".env",
+        "Nested/.hidden",
+    ],
+)
 def test_browser_rejects_bad_paths(workspace, bad):
     with pytest.raises(ValueError):
         browse_workspace(bad)

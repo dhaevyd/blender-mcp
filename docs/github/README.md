@@ -150,12 +150,14 @@ dev-dependencies = [
 **Problem**:
 ```python
 import xml.etree.ElementTree as ET  # ❌ Vulnerable
+
 tree = ET.parse(file)
 ```
 
 **Solution**:
 ```python
 import defusedxml.ElementTree as ET  # ✅ Safe
+
 tree = ET.parse(file)
 ```
 

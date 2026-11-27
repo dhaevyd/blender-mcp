@@ -8,6 +8,7 @@ from ..decorators import blender_operation
 
 logger = logging.getLogger(__name__)
 from ..utils.blender_executor import get_blender_executor
+from ..utils.script_utils import py_str
 
 _executor = get_blender_executor()
 
@@ -142,10 +143,12 @@ async def bake_particles(
     **kwargs: Any,
 ) -> dict[str, Any]:
     """Bake particle simulation."""
+    _on = py_str(object_name)
+    _sn = py_str(system_name) if system_name else '""'
     script = f"""
 
 def bake_particles():
-    obj = bpy.data.objects.get('{object_name}')
+    obj = bpy.data.objects.get({_on})
     if not obj:
         return {{'status': 'ERROR', 'error': 'Object not found'}}
 
@@ -154,8 +157,8 @@ def bake_particles():
     bpy.context.view_layer.objects.active = obj
 
     systems_to_bake = []
-    if '{system_name}':
-        ps = obj.particle_systems.get('{system_name}')
+    if {_sn}:
+        ps = obj.particle_systems.get({_sn})
         if ps:
             systems_to_bake.append(ps)
     else:

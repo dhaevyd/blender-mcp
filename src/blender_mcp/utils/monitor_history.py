@@ -115,9 +115,7 @@ def _interval_seconds() -> int:
 
 
 def _retention_days() -> int:
-    return _clamped_int(
-        "MCP_MONITOR_RETENTION_DAYS", DEFAULT_RETENTION_DAYS, MIN_RETENTION_DAYS, MAX_RETENTION_DAYS
-    )
+    return _clamped_int("MCP_MONITOR_RETENTION_DAYS", DEFAULT_RETENTION_DAYS, MIN_RETENTION_DAYS, MAX_RETENTION_DAYS)
 
 
 def _bucket_seconds(window_seconds: int) -> int:
@@ -232,8 +230,7 @@ def _enforce_size_cap(db: sqlite3.Connection) -> int:
         return 0
     doomed = max(1, int(total * (1 - MAX_DB_BYTES / size)) + 1)
     cursor = db.execute(
-        "DELETE FROM samples WHERE rowid IN ("
-        " SELECT rowid FROM samples ORDER BY ts ASC, gpu_index ASC LIMIT ?)",
+        "DELETE FROM samples WHERE rowid IN ( SELECT rowid FROM samples ORDER BY ts ASC, gpu_index ASC LIMIT ?)",
         (doomed,),
     )
     return max(cursor.rowcount, 0)

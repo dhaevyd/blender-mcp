@@ -8,6 +8,7 @@ from ..decorators import blender_operation
 
 logger = logging.getLogger(__name__)
 from ..utils.blender_executor import get_blender_executor
+from ..utils.script_utils import py_str
 
 _executor = get_blender_executor()
 
@@ -85,20 +86,23 @@ async def add_modifier(
     # that can be used in the Blender script
     props_str = ", ".join(f"{k}={v!r}" for k, v in kwargs.items())
 
+    _on = py_str(object_name)
+    _name = py_str(name)
+    _mt = py_str(modifier_type)
     script = f"""
 
 def add_modifier():
-    obj = bpy.data.objects.get('{object_name}')
+    obj = bpy.data.objects.get({_on})
     if not obj:
         return {{"status": "ERROR", "error": "Object not found"}}
 
     try:
         # Check if modifier with this name already exists
-        if '{name}' in obj.modifiers:
-            return {{"status": "ERROR", "error": f"Modifier '{{name}}' already exists"}}
+        if {_name} in obj.modifiers:
+            return {{"status": "ERROR", "error": "Modifier already exists"}}
 
         # Add the modifier
-        mod = obj.modifiers.new('{name}', '{modifier_type}')
+        mod = obj.modifiers.new({_name}, {_mt})
         if not mod:
             return {{"status": "ERROR", "error": f"Failed to create modifier of type '{{modifier_type}}'"}}
 
@@ -140,19 +144,21 @@ async def remove_modifier(object_name: str, modifier_name: str, **kwargs: Any) -
     Returns:
         Dict containing removal status
     """
+    _on = py_str(object_name)
+    _mn = py_str(modifier_name)
     script = f"""
 
 def remove_modifier():
-    obj = bpy.data.objects.get('{object_name}')
+    obj = bpy.data.objects.get({_on})
     if not obj:
         return {{"status": "ERROR", "error": "Object not found"}}
 
-    if '{modifier_name}' not in obj.modifiers:
-        return {{"status": "ERROR", "error": f"Modifier '{{modifier_name}}' not found"}}
+    if {_mn} not in obj.modifiers:
+        return {{"status": "ERROR", "error": "Modifier not found"}}
 
     try:
         # Store modifier info before removal
-        mod = obj.modifiers['{modifier_name}']
+        mod = obj.modifiers[{_mn}]
         mod_info = {{
             "name": mod.name,
             "type": mod.type,
@@ -200,10 +206,12 @@ async def get_modifiers(
     Returns:
         Dict containing modifier information
     """
+    _on = py_str(object_name)
+    _mt = py_str(modifier_type) if modifier_type else '""'
     script = f"""
 
 def get_modifiers():
-    obj = bpy.data.objects.get('{object_name}')
+    obj = bpy.data.objects.get({_on})
     if not obj:
         return {{"status": "ERROR", "error": "Object not found"}}
 
@@ -211,7 +219,7 @@ def get_modifiers():
         modifiers = []
         for mod in obj.modifiers:
             # Skip if type filter is specified and doesn't match
-            if '{modifier_type}' and mod.type != '{modifier_type}':
+            if {_mt} and mod.type != {_mt}:
                 continue
 
             # Get common properties
@@ -270,19 +278,21 @@ async def apply_modifier(object_name: str, modifier_name: str, **kwargs: Any) ->
     Returns:
         Dict containing apply status
     """
+    _on = py_str(object_name)
+    _mn = py_str(modifier_name)
     script = f"""
 
 def apply_modifier():
-    obj = bpy.data.objects.get('{object_name}')
+    obj = bpy.data.objects.get({_on})
     if not obj:
         return {{"status": "ERROR", "error": "Object not found"}}
 
-    if '{modifier_name}' not in obj.modifiers:
-        return {{"status": "ERROR", "error": f"Modifier '{{modifier_name}}' not found"}}
+    if {_mn} not in obj.modifiers:
+        return {{"status": "ERROR", "error": "Modifier not found"}}
 
     try:
         # Store modifier info before applying
-        mod = obj.modifiers['{modifier_name}']
+        mod = obj.modifiers[{_mn}]
         mod_info = {{
             "name": mod.name,
             "type": mod.type

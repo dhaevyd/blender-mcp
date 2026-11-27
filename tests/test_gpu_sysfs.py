@@ -134,7 +134,9 @@ def test_intel_integrated_gpu_reports_shared_gtt(tmp_path: Path) -> None:
 
 
 def test_shared_gpu_inventory_caps_free_gtt_by_host_available_ram(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(farm_workers.subprocess, "run", lambda *args, **kwargs: (_ for _ in ()).throw(FileNotFoundError()))
+    monkeypatch.setattr(
+        farm_workers.subprocess, "run", lambda *args, **kwargs: (_ for _ in ()).throw(FileNotFoundError())
+    )
     monkeypatch.setattr(
         farm_workers,
         "amd_gpu_stats",
@@ -143,7 +145,14 @@ def test_shared_gpu_inventory_caps_free_gtt_by_host_available_ram(monkeypatch: p
     monkeypatch.setattr(
         farm_workers,
         "intel_gpu_stats",
-        lambda: [{"name": "Intel Iris Xe", "memory_total_mib": 12 * 1024, "memory_used_mib": 2 * 1024, "memory_type": "shared"}],
+        lambda: [
+            {
+                "name": "Intel Iris Xe",
+                "memory_total_mib": 12 * 1024,
+                "memory_used_mib": 2 * 1024,
+                "memory_type": "shared",
+            }
+        ],
     )
     monkeypatch.setattr(
         farm_workers.psutil,
@@ -160,7 +169,9 @@ def test_shared_gpu_inventory_caps_free_gtt_by_host_available_ram(monkeypatch: p
 
 
 def test_small_amd_vram_uses_host_memory_fallback_when_gtt_is_hidden(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(farm_workers.subprocess, "run", lambda *args, **kwargs: (_ for _ in ()).throw(FileNotFoundError()))
+    monkeypatch.setattr(
+        farm_workers.subprocess, "run", lambda *args, **kwargs: (_ for _ in ()).throw(FileNotFoundError())
+    )
     monkeypatch.setattr(
         farm_workers,
         "amd_gpu_stats",

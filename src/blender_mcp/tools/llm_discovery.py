@@ -142,6 +142,13 @@ def _register_llm_tools():
         await call_tool("llm_models", {"operation": "list"})
         ```
         """
+        # BLENDER-006: Validate ollama_url to prevent SSRF
+        from ..utils.safe_http import _check_url
+
+        try:
+            _check_url(ollama_url, require_https=False)
+        except ValueError as e:
+            return {"success": False, "summary": f"URL rejected: {e}", "result": []}
         base = ollama_url.rstrip("/")
         if operation in ("pull", "remove") and not (model_name and model_name.strip()):
             return {"success": False, "summary": "model_name required for pull/remove", "result": []}

@@ -63,7 +63,6 @@ def test_concurrent_first_use_creates_one_complete_private_key(tmp_path):
         assert (tmp_path / "farm.key").stat().st_mode & 0o777 == 0o600
 
 
-
 def test_job_state_survives_store_reopen_at_workspace_database_path(tmp_path):
     database = tmp_path / ".blender-farm" / "farm.sqlite3"
     first = FarmJobStore(database)

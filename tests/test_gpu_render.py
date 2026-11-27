@@ -387,7 +387,11 @@ def test_gpu_only_refuses_absent_gpu_even_when_require_gpu_is_relaxed(capsys):
     prefs = FakeCyclesPreferences([FakeDevice("CPU", "CPU")], supported=())
     scene = FakeScene("CYCLES")
     with pytest.raises(RuntimeError, match="CPU fallback is disabled"):
-        run_snippet(build_gpu_setup_snippet(require_gpu_override=False, environ={"MCP_RENDER_GPU_ONLY": "true"}), make_bpy(scene, prefs), capsys=capsys)
+        run_snippet(
+            build_gpu_setup_snippet(require_gpu_override=False, environ={"MCP_RENDER_GPU_ONLY": "true"}),
+            make_bpy(scene, prefs),
+            capsys=capsys,
+        )
     output = capsys.readouterr().out
     assert "MCP_GPU_ERROR:" in output
     assert "OPTIX" in output and "CUDA" in output
@@ -396,9 +400,16 @@ def test_gpu_only_refuses_absent_gpu_even_when_require_gpu_is_relaxed(capsys):
 
 def test_gpu_only_refuses_explicit_cpu_and_eevee_without_context(capsys):
     with pytest.raises(RuntimeError, match="explicit CPU"):
-        run_snippet(build_gpu_setup_snippet(device="CPU", environ={"MCP_RENDER_GPU_ONLY": "1"}), make_bpy(FakeScene(), FakeCyclesPreferences(gpu_devices())))
+        run_snippet(
+            build_gpu_setup_snippet(device="CPU", environ={"MCP_RENDER_GPU_ONLY": "1"}),
+            make_bpy(FakeScene(), FakeCyclesPreferences(gpu_devices())),
+        )
     with pytest.raises(RuntimeError, match="GPU-only policy"):
-        run_snippet(build_gpu_setup_snippet(engine="BLENDER_EEVEE_NEXT", environ={"MCP_RENDER_GPU_ONLY": "true"}), make_bpy(FakeScene("BLENDER_EEVEE_NEXT"), None), gpu_module=make_broken_gpu("no context"))
+        run_snippet(
+            build_gpu_setup_snippet(engine="BLENDER_EEVEE_NEXT", environ={"MCP_RENDER_GPU_ONLY": "true"}),
+            make_bpy(FakeScene("BLENDER_EEVEE_NEXT"), None),
+            gpu_module=make_broken_gpu("no context"),
+        )
 
 
 def test_gpu_only_parser_defaults_false():

@@ -36,8 +36,10 @@ def test_dashboard_route_serves_index_without_opening_api(tmp_path, monkeypatch)
 def test_static_asset_is_public_but_unknown_api_stays_protected(tmp_path, monkeypatch):
     (tmp_path / "app.js").write_text("dashboard bundle")
     app = Starlette(
-        routes=[Mount("/assets", StaticFiles(directory=tmp_path), name="assets"),
-                Route("/api/private", lambda request: PlainTextResponse("private"))],
+        routes=[
+            Mount("/assets", StaticFiles(directory=tmp_path), name="assets"),
+            Route("/api/private", lambda request: PlainTextResponse("private")),
+        ],
         middleware=[Middleware(_ApiKeyMiddleware)],
     )
     monkeypatch.setenv("BLENDER_MCP_API_KEY", "secret")

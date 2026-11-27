@@ -46,7 +46,6 @@ def validate_worker_destination(url: str) -> None:
         ipaddress.ip_network("192.168.0.0/16"),
         ipaddress.ip_network("100.64.0.0/10"),
         ipaddress.ip_network("fc00::/7"),
-
     )
     if not any(address.version == network.version and address in network for network in allowed):
         raise ValueError("worker endpoint must use an RFC1918, Tailscale, or IPv6 ULA IP")
@@ -130,7 +129,7 @@ def worker_identity(config: WorkerConfig | None = None) -> dict[str, Any]:
     workspace = os.environ.get("BLENDER_WORKSPACE") or (config.workspace if config else "/workspace")
     blender = os.environ.get("BLENDER_EXECUTABLE", "blender")
     try:
-        result = subprocess.run([blender, "--version"], capture_output=True, text=True, timeout=5, check=False)
+        result = subprocess.run([blender, "--version"], capture_output=True, text=True, timeout=5, check=False)  # noqa: S603
         version = result.stdout.splitlines()[0] if result.returncode == 0 and result.stdout else None
     except (OSError, subprocess.TimeoutExpired):
         version = None
@@ -323,7 +322,12 @@ def gpu_inventory_stats() -> list[dict[str, Any]]:
             device["index"] = index
             device["backend"] = backend
             total = device.get("memory_total_mib")
-            if backend in {"AMD", "INTEL"} and device.get("memory_type") == "dedicated" and isinstance(total, int) and 0 < total <= 512:
+            if (
+                backend in {"AMD", "INTEL"}
+                and device.get("memory_type") == "dedicated"
+                and isinstance(total, int)
+                and 0 < total <= 512
+            ):
                 device["memory_total_mib"] = None
                 device["memory_used_mib"] = None
                 device["memory_type"] = "shared"
@@ -344,7 +348,11 @@ def gpu_inventory_stats() -> list[dict[str, Any]]:
 def gpu_stats() -> list[dict[str, Any]]:
     """Return compact GPU telemetry rows for diagnostics."""
     return [
-        {key: value for key, value in device.items() if key not in {"index", "memory_free_mib", "backend", "memory_type"}}
+        {
+            key: value
+            for key, value in device.items()
+            if key not in {"index", "memory_free_mib", "backend", "memory_type"}
+        }
         for device in gpu_inventory_stats()
     ]
 
@@ -377,9 +385,7 @@ class MCPWorkerClient:
                 result = await session.list_tools()
                 return [{"name": tool.name, "description": tool.description or ""} for tool in result.tools]
 
-    async def call_tool(
-        self, tool_name: str, arguments: dict[str, Any], *, timeout: float = 1800
-    ) -> dict[str, Any]:
+    async def call_tool(self, tool_name: str, arguments: dict[str, Any], *, timeout: float = 1800) -> dict[str, Any]:
         from mcp import ClientSession
         from mcp.client.streamable_http import streamablehttp_client
 

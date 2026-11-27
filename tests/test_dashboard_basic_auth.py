@@ -32,7 +32,9 @@ def _reset_login_state(tmp_path, monkeypatch):
 
 @pytest.fixture
 def app(tmp_path, monkeypatch):
-    (tmp_path / "index.html").write_text('<html><head><link rel="icon" href="/favicon.svg"><link rel="stylesheet" href="/assets/index-B2a3d4e5.css"></head><body><div id="root"></div><script type="module" src="/assets/index-B2a3d4e5.js"></script></body></html>')
+    (tmp_path / "index.html").write_text(
+        '<html><head><link rel="icon" href="/favicon.svg"><link rel="stylesheet" href="/assets/index-B2a3d4e5.css"></head><body><div id="root"></div><script type="module" src="/assets/index-B2a3d4e5.js"></script></body></html>'
+    )
     (tmp_path / "favicon.svg").write_text("<svg>icon</svg>")
     assets = tmp_path / "assets"
     assets.mkdir()
@@ -87,7 +89,9 @@ def test_disabled_and_unset_auth_keep_dashboard_public(client, monkeypatch):
         assert client.get("/api/private").status_code == 401
 
 
-@pytest.mark.parametrize("username,password", [(None, None), ("admin", None), (None, "password"), (" ", "password"), ("admin", "  ")])
+@pytest.mark.parametrize(
+    "username,password", [(None, None), ("admin", None), (None, "password"), (" ", "password"), ("admin", "  ")]
+)
 def test_enabled_without_valid_config_fails_closed(client, monkeypatch, username, password):
     monkeypatch.setenv("MCP_DASH_AUTH", "true")
     if username is not None:
@@ -106,9 +110,13 @@ def test_enabled_challenges_dashboard_and_does_not_leak_secrets(client, monkeypa
     monkeypatch.setenv("MCP_USERNAME", "admin")
     monkeypatch.setenv("MCP_PASSWORD", "password")
     wrong_headers = [
-        {}, {"authorization": "Basic ???"}, {"authorization": "Basic YTpi===="},
-        {"authorization": "Basic /w=="}, {"authorization": "Basic YWJj"},
-        _basic("other", "password"), _basic("admin", "wrong"),
+        {},
+        {"authorization": "Basic ???"},
+        {"authorization": "Basic YTpi===="},
+        {"authorization": "Basic /w=="},
+        {"authorization": "Basic YWJj"},
+        _basic("other", "password"),
+        _basic("admin", "wrong"),
         {"authorization": "Bearer api-secret"},
     ]
     for path in ("/", "/settings", "/new-spa-route", "/assets/app.js"):
@@ -142,7 +150,9 @@ def test_basic_does_not_authorize_api_or_mcp_and_public_contract_survives(client
         response = client.get(path, headers={**_basic(), "accept": "text/html"})
         assert response.status_code == 401
         assert "www-authenticate" not in response.headers
-        assert client.get(path, headers={"authorization": "Bearer api-secret", "accept": "text/html"}).status_code == 200
+        assert (
+            client.get(path, headers={"authorization": "Bearer api-secret", "accept": "text/html"}).status_code == 200
+        )
     for path in ("/health", "/api/v1/diagnostics", "/viewer", "/api/v1/viewer/state"):
         assert client.get(path).status_code == 200
 
@@ -237,7 +247,11 @@ def test_login_session_logout_and_bearer_separation(client, monkeypatch):
 
 def test_session_cookie_secure_on_https(client, monkeypatch):
     _enable(monkeypatch)
-    response = client.post("https://testserver/api/v1/dashboard/login", json={"username": "admin", "password": "password"}, headers={"origin": "https://testserver"})
+    response = client.post(
+        "https://testserver/api/v1/dashboard/login",
+        json={"username": "admin", "password": "password"},
+        headers={"origin": "https://testserver"},
+    )
     assert response.status_code == 200
     assert "secure" in response.headers["set-cookie"].lower()
 
@@ -249,7 +263,12 @@ def test_csrf_and_malformed_login_rejected(client, monkeypatch):
     assert client.post(endpoint, json=payload).status_code == 403
     assert client.post(endpoint, json=payload, headers={"origin": "https://evil.example"}).status_code == 403
     assert client.post(endpoint, data=payload, headers={"origin": "http://testserver"}).status_code == 415
-    assert client.post(endpoint, content=b"{", headers={"origin": "http://testserver", "content-type": "application/json"}).status_code == 400
+    assert (
+        client.post(
+            endpoint, content=b"{", headers={"origin": "http://testserver", "content-type": "application/json"}
+        ).status_code
+        == 400
+    )
     assert client.get("/api/v1/dashboard/session", headers=_basic()).status_code == 401
     assert client.post("/api/v1/dashboard/logout", headers={"origin": "https://evil.example"}).status_code == 403
 
@@ -257,7 +276,9 @@ def test_csrf_and_malformed_login_rejected(client, monkeypatch):
 def test_cookie_tampering_and_rotation_invalidate_session(client, monkeypatch):
     _enable(monkeypatch)
     origin = {"origin": "http://testserver"}
-    response = client.post("/api/v1/dashboard/login", json={"username": "admin", "password": "password"}, headers=origin)
+    response = client.post(
+        "/api/v1/dashboard/login", json={"username": "admin", "password": "password"}, headers=origin
+    )
     name, value = response.headers["set-cookie"].split(";", 1)[0].split("=", 1)
     client.cookies.set(name, value[:-1] + ("A" if value[-1] != "A" else "B"))
     assert client.get("/settings").status_code == 401
@@ -268,16 +289,22 @@ def test_cookie_tampering_and_rotation_invalidate_session(client, monkeypatch):
 
 def test_missing_config_login_fails_closed(client, monkeypatch):
     monkeypatch.setenv("MCP_DASH_AUTH", "true")
-    response = client.post("/api/v1/dashboard/login", json={"username": "admin", "password": "password"}, headers={"origin": "http://testserver"})
+    response = client.post(
+        "/api/v1/dashboard/login",
+        json={"username": "admin", "password": "password"},
+        headers={"origin": "http://testserver"},
+    )
     assert response.status_code == 503
     assert client.get("/login").status_code == 503
     assert client.get("/assets/index-B2a3d4e5.js").status_code == 503
+
 
 def test_disabled_login_redirects_to_root(client):
     for path in ("/login", "/login/"):
         response = client.get(path, follow_redirects=False)
         assert response.status_code == 303
         assert response.headers["location"] == "/"
+
 
 def test_login_with_no_dist_fails_closed(client, monkeypatch, tmp_path):
     _enable(monkeypatch)
@@ -286,9 +313,14 @@ def test_login_with_no_dist_fails_closed(client, monkeypatch, tmp_path):
     assert response.status_code == 503
     assert "api-secret" not in response.text
 
+
 def test_fingerprint_assets_never_grant_api_access(client, monkeypatch):
     _enable(monkeypatch)
-    client.post("/api/v1/dashboard/login", json={"username": "admin", "password": "password"}, headers={"origin": "http://testserver"})
+    client.post(
+        "/api/v1/dashboard/login",
+        json={"username": "admin", "password": "password"},
+        headers={"origin": "http://testserver"},
+    )
     for path in ("/api", "/api/private", "/tool", "/mcp", "/api/v1/other-B2a3d4e5.js"):
         assert client.get(path, headers={"accept": "text/html"}).status_code == 401
     assert client.post("/assets/index-B2a3d4e5.js").status_code == 401
@@ -298,7 +330,11 @@ def test_session_expires_after_fifteen_minutes(client, monkeypatch):
     _enable(monkeypatch)
     start = 1_800_000_000
     monkeypatch.setattr(server.time, "time", lambda: start)
-    response = client.post("/api/v1/dashboard/login", json={"username": "admin", "password": "password"}, headers={"origin": "http://testserver"})
+    response = client.post(
+        "/api/v1/dashboard/login",
+        json={"username": "admin", "password": "password"},
+        headers={"origin": "http://testserver"},
+    )
     assert response.status_code == 200
     assert client.get("/settings").status_code == 200
     monkeypatch.setattr(server.time, "time", lambda: start + 901)
@@ -339,7 +375,14 @@ def test_real_asgi_login_routes_and_authenticated_root(tmp_path, monkeypatch):
         root = actual.get("/", headers={"accept": "text/html"}, follow_redirects=False)
         assert root.status_code == 303
         assert root.headers["location"] == "/login"
-        assert actual.post("/api/v1/dashboard/login", json={"username": "admin", "password": "password"}, headers={"origin": "http://testserver"}).status_code == 200
+        assert (
+            actual.post(
+                "/api/v1/dashboard/login",
+                json={"username": "admin", "password": "password"},
+                headers={"origin": "http://testserver"},
+            ).status_code
+            == 200
+        )
         dashboard = actual.get("/")
         assert dashboard.status_code == 200
         assert 'window.__BLENDER_MCP_API_KEY__="fixture-key"' in dashboard.text
@@ -350,7 +393,13 @@ def test_auth_routes_registered_before_spa_fallback():
     routes = server.asgi_app.router.routes
     paths = [getattr(route, "path", "") for route in routes]
     fallback_index = paths.index("/{full_path:path}") if "/{full_path:path}" in paths else len(paths)
-    for path in ("/login", "/login/", "/api/v1/dashboard/login", "/api/v1/dashboard/session", "/api/v1/dashboard/logout"):
+    for path in (
+        "/login",
+        "/login/",
+        "/api/v1/dashboard/login",
+        "/api/v1/dashboard/session",
+        "/api/v1/dashboard/logout",
+    ):
         assert path in paths
         assert paths.index(path) < fallback_index
 
@@ -376,7 +425,9 @@ def test_cross_origin_with_session_cookie_cannot_read_key_bearing_html(real_app,
     """A page on another localhost port shares the cookie but must not read the key."""
     _enable(monkeypatch)
     with real_app as actual:
-        login = actual.post(LOGIN_PATH, json={"username": "admin", "password": "password"}, headers={"origin": "http://testserver"})
+        login = actual.post(
+            LOGIN_PATH, json={"username": "admin", "password": "password"}, headers={"origin": "http://testserver"}
+        )
         assert login.status_code == 200
         response = actual.get("/", headers={"origin": EVIL_ORIGIN, "accept": "text/html"}, follow_redirects=False)
         assert response.status_code == 200
@@ -459,9 +510,9 @@ def test_login_failures_are_rate_limited_per_client_and_recover(client, monkeypa
     assert "wrong-password" not in blocked.text
     assert "api-secret" not in blocked.text
     # Correct credentials cannot bypass an active limit window.
-    assert _login(client, password="password").status_code == 429
+    assert _login(client, password="password").status_code == 429  # noqa: S106
     monkeypatch.setattr(server.time, "time", lambda: now + server._LOGIN_WINDOW_SECONDS + 1)
-    assert _login(client, password="password").status_code == 200
+    assert _login(client, password="password").status_code == 200  # noqa: S106
     assert client.get("/api/v1/dashboard/session").json() == {"authenticated": True}
 
 
@@ -490,7 +541,7 @@ def test_login_limiter_global_cap_blocks_distinct_clients(app, monkeypatch):
         assert blocked.status_code == 429
         assert int(blocked.headers["retry-after"]) > 0
         monkeypatch.setattr(server.time, "time", lambda: now + server._LOGIN_WINDOW_SECONDS + 1)
-        assert _login(fresh, password="password").status_code == 200
+        assert _login(fresh, password="password").status_code == 200  # noqa: S106
 
 
 def test_login_limiter_state_stays_bounded(monkeypatch):
@@ -537,7 +588,12 @@ def test_basic_failures_share_one_bucket_with_password_login(client, monkeypatch
     monkeypatch.setattr(server.time, "time", lambda: 1_800_000_000)
     for _ in range(server._LOGIN_MAX_ATTEMPTS - 1):
         assert client.get("/", headers=_basic("admin", "wrong-secret")).status_code == 401
-    assert client.post(LOGIN_PATH, json={"username": "admin", "password": "wrong-secret"}, headers={"origin": "http://testserver"}).status_code == 401
+    assert (
+        client.post(
+            LOGIN_PATH, json={"username": "admin", "password": "wrong-secret"}, headers={"origin": "http://testserver"}
+        ).status_code
+        == 401
+    )
     assert client.get("/", headers=_basic()).status_code == 429
     # A successful Basic attempt clears the client bucket again.
     monkeypatch.setattr(server.time, "time", lambda: 1_800_000_000 + server._LOGIN_WINDOW_SECONDS + 1)
@@ -610,7 +666,14 @@ def test_limit_file_never_stores_credentials(client, monkeypatch, tmp_path):
     token = base64.b64encode(b"admin:wrong-secret").decode()
     for _ in range(2):
         assert client.get("/", headers={"authorization": f"Basic {token}"}).status_code == 401
-        assert client.post(LOGIN_PATH, json={"username": "admin", "password": "wrong-secret"}, headers={"origin": "http://testserver"}).status_code == 401
+        assert (
+            client.post(
+                LOGIN_PATH,
+                json={"username": "admin", "password": "wrong-secret"},
+                headers={"origin": "http://testserver"},
+            ).status_code
+            == 401
+        )
     text = store.read_text(encoding="utf-8")
     assert len(json.loads(text)["failures"]["testclient"]) == 4
     for secret in ("admin", "wrong-secret", token, "password", "api-secret"):
@@ -630,9 +693,7 @@ def test_forwarded_headers_ignored_unless_explicitly_trusted(client, monkeypatch
     )
     assert proxied.status_code == 403
     # No Secure cookie on a plain connection even if the header claims HTTPS.
-    plain = client.post(
-        LOGIN_PATH, json=payload, headers={"origin": "http://testserver", "x-forwarded-proto": "https"}
-    )
+    plain = client.post(LOGIN_PATH, json=payload, headers={"origin": "http://testserver", "x-forwarded-proto": "https"})
     assert plain.status_code == 200
     assert "secure" not in plain.headers["set-cookie"].lower()
     client.cookies.clear()
@@ -642,7 +703,9 @@ def test_forwarded_headers_ignored_unless_explicitly_trusted(client, monkeypatch
     for index in range(server._LOGIN_MAX_ATTEMPTS):
         response = client.get("/", headers={**_basic("admin", "wrong-secret"), "x-forwarded-for": f"10.7.0.{index}"})
         assert response.status_code == 401
-    assert client.get("/", headers={**_basic("admin", "wrong-secret"), "x-forwarded-for": "10.7.9.9"}).status_code == 429
+    assert (
+        client.get("/", headers={**_basic("admin", "wrong-secret"), "x-forwarded-for": "10.7.9.9"}).status_code == 429
+    )
 
 
 def test_trusted_proxy_uses_forwarded_scheme_and_client(client, monkeypatch):
@@ -670,10 +733,14 @@ def test_trusted_proxy_uses_forwarded_scheme_and_client(client, monkeypatch):
     for _ in range(server._LOGIN_MAX_ATTEMPTS):
         response = client.get("/", headers={**_basic("admin", "wrong-secret"), "x-forwarded-for": "10.8.0.1"})
         assert response.status_code == 401
-    assert client.get("/", headers={**_basic("admin", "wrong-secret"), "x-forwarded-for": "10.8.0.1"}).status_code == 429
+    assert (
+        client.get("/", headers={**_basic("admin", "wrong-secret"), "x-forwarded-for": "10.8.0.1"}).status_code == 429
+    )
     # The last hop is the client identity, so a different proxy peer is a new bucket.
     assert client.get("/", headers={**_basic(), "x-forwarded-for": "10.8.0.2"}).status_code == 200
-    assert client.get("/", headers={**_basic("admin", "wrong-secret"), "x-forwarded-for": "10.8.0.2"}).status_code == 401
+    assert (
+        client.get("/", headers={**_basic("admin", "wrong-secret"), "x-forwarded-for": "10.8.0.2"}).status_code == 401
+    )
 
 
 def test_trusted_proxy_ignores_implausible_forwarded_for(client, monkeypatch):
@@ -683,7 +750,9 @@ def test_trusted_proxy_ignores_implausible_forwarded_for(client, monkeypatch):
     for index in range(server._LOGIN_MAX_ATTEMPTS):
         response = client.get("/", headers={**_basic("admin", "wrong-secret"), "x-forwarded-for": f"not-an-ip-{index}"})
         assert response.status_code == 401
-    assert client.get("/", headers={**_basic("admin", "wrong-secret"), "x-forwarded-for": "not-an-ip"}).status_code == 429
+    assert (
+        client.get("/", headers={**_basic("admin", "wrong-secret"), "x-forwarded-for": "not-an-ip"}).status_code == 429
+    )
     # Oversized values are discarded rather than parsed.
     huge = ",".join(["10.6.0.1"] * 200)
     assert client.get("/", headers={**_basic("admin", "wrong-secret"), "x-forwarded-for": huge}).status_code == 429
@@ -771,19 +840,21 @@ def test_invalid_allowlist_entries_are_ignored(client, monkeypatch):
     _enable(monkeypatch)
     monkeypatch.setenv(
         "MCP_DASH_ALLOWED_ORIGINS",
-        ",".join([
-            "https://blender.d4rkcyber.com/dashboard",
-            "https://blender.d4rkcyber.com?next=/settings",
-            "https://blender.d4rkcyber.com#settings",
-            "https://user:pass@blender.d4rkcyber.com",
-            "https://*.d4rkcyber.com",
-            "ftp://blender.d4rkcyber.com",
-            "https://blender d4rkcyber.com",
-            "blender.d4rkcyber.com",
-            "https://blender.d4rkcyber.com:",
-            "https://blender.d4rkcyber.com:not-a-port",
-            "",
-        ]),
+        ",".join(
+            [
+                "https://blender.d4rkcyber.com/dashboard",
+                "https://blender.d4rkcyber.com?next=/settings",
+                "https://blender.d4rkcyber.com#settings",
+                "https://user:pass@blender.d4rkcyber.com",
+                "https://*.d4rkcyber.com",
+                "ftp://blender.d4rkcyber.com",
+                "https://blender d4rkcyber.com",
+                "blender.d4rkcyber.com",
+                "https://blender.d4rkcyber.com:",
+                "https://blender.d4rkcyber.com:not-a-port",
+                "",
+            ]
+        ),
     )
     assert server._dashboard_allowed_origins() == set()
     assert _proxied_login(client).status_code == 403

@@ -64,6 +64,7 @@ _result_data: dict | None = None
 # Add-on Preferences — API keys that survive restarts
 # ---------------------------------------------------------------------------
 
+
 class MCP_AddonPreferences(bpy.types.AddonPreferences):
     bl_idname = __name__
 
@@ -122,6 +123,7 @@ class MCP_AddonPreferences(bpy.types.AddonPreferences):
 # ---------------------------------------------------------------------------
 # Socket server — runs in background thread
 # ---------------------------------------------------------------------------
+
 
 def _get_prefs():
     try:
@@ -197,15 +199,21 @@ def _handle_client(client: socket.socket):
                 # Wait for result (with timeout)
                 if _result_event.wait(timeout=180):
                     result = _result_data or {}
-                    _send_response(client, {
-                        "status": "success" if result.get("success") else "error",
-                        "result": result,
-                    })
+                    _send_response(
+                        client,
+                        {
+                            "status": "success" if result.get("success") else "error",
+                            "result": result,
+                        },
+                    )
                 else:
-                    _send_response(client, {
-                        "status": "error",
-                        "message": "Execution timed out (180s)",
-                    })
+                    _send_response(
+                        client,
+                        {
+                            "status": "error",
+                            "message": "Execution timed out (180s)",
+                        },
+                    )
                 continue
 
             if cmd == "get_api_keys":
@@ -281,7 +289,7 @@ def _server_loop():
             _log.info("MCP server connected from %s", addr)
             t = threading.Thread(target=_handle_client, args=(client,), daemon=True)
             t.start()
-        except socket.timeout:
+        except TimeoutError:
             continue
         except OSError:
             break
@@ -292,6 +300,7 @@ def _server_loop():
 # ---------------------------------------------------------------------------
 # Main-thread timer — safe to call bpy here
 # ---------------------------------------------------------------------------
+
 
 def _process_pending():
     global _pending_task, _pending_event, _result_data, _result_event
@@ -310,13 +319,15 @@ def _process_pending():
             code = task.get("code", "")
             output_lines = []
             error_msg = None
-            import io, sys
+            import io
+            import sys
+
             buf = io.StringIO()
             old_stdout = sys.stdout
             sys.stdout = buf
             try:
                 exec(compile(code, "<mcp_bridge>", "exec"), {"bpy": bpy})
-            except Exception as exc:
+            except Exception:
                 error_msg = traceback.format_exc()
             finally:
                 sys.stdout = old_stdout
@@ -337,13 +348,17 @@ def _process_pending():
             for i, obj in enumerate(bpy.context.scene.objects):
                 if i >= 20:
                     break
-                info["objects"].append({
-                    "name": obj.name,
-                    "type": obj.type,
-                    "location": [round(float(obj.location.x), 2),
-                                 round(float(obj.location.y), 2),
-                                 round(float(obj.location.z), 2)],
-                })
+                info["objects"].append(
+                    {
+                        "name": obj.name,
+                        "type": obj.type,
+                        "location": [
+                            round(float(obj.location.x), 2),
+                            round(float(obj.location.y), 2),
+                            round(float(obj.location.z), 2),
+                        ],
+                    }
+                )
             result = info
 
         elif cmd == "screenshot_viewport":
@@ -353,6 +368,7 @@ def _process_pending():
 
             if not filepath:
                 import tempfile
+
                 filepath = os.path.join(tempfile.gettempdir(), f"blender_mcp_shot_{os.getpid()}.png")
 
             os.makedirs(os.path.dirname(filepath), exist_ok=True)
@@ -387,7 +403,7 @@ def _process_pending():
                 "filepath": filepath,
             }
 
-    except Exception as exc:
+    except Exception:
         result = {"success": False, "error": traceback.format_exc()}
 
     _result_data = result

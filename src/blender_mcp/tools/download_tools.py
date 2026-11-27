@@ -7,6 +7,7 @@ Supports models, textures, and other assets with automatic format detection.
 
 import logging
 import os
+import re
 import shutil
 import tempfile
 from urllib.parse import urlparse
@@ -14,6 +15,7 @@ from urllib.parse import urlparse
 import httpx
 
 from ..app import app
+from ..utils.script_utils import py_str
 
 logger = logging.getLogger(__name__)
 from ..compat import *
@@ -69,6 +71,11 @@ def _get_file_type_from_url(url: str) -> str:
 async def _download_file(url: str, output_path: str, timeout: int = 30) -> bool:
     """Download file from URL to specified path with async httpx."""
     try:
+        # BLENDER-006: SSRF protection
+        from ..utils.safe_http import _check_url
+
+        _check_url(url, require_https=False)  # allow http for local testing but block private IPs
+
         logger.info(f"Downloading from: {url}")
         logger.debug(f"Saving to: {output_path}")
 
@@ -98,12 +105,14 @@ async def _download_file(url: str, output_path: str, timeout: int = 30) -> bool:
 
 def _import_into_blender(file_path: str, file_ext: str) -> str:
     """Import downloaded file into Blender scene."""
+    _fp = py_str(file_path)  # BLENDER-004: safe embedding
+    _fe = py_str(file_ext)
     script = f"""
 import bpy
 import os
 
-file_path = r"{file_path}"
-file_ext = "{file_ext}"
+file_path = {_fp}
+file_ext = {_fe}
 
 try:
     # Ensure file exists
@@ -246,7 +255,11 @@ Use operation="info" for this message.
         try:
             # Generate filename
             if custom_filename:
-                filename = f"{custom_filename}{file_ext}"
+                # BLENDER-005: Sanitize custom_filename to prevent path traversal
+                safe_name = re.sub(r"[^A-Za-z0-9._-]", "_", os.path.basename(custom_filename))
+                if not safe_name or safe_name.startswith("."):
+                    safe_name = "downloaded_file"
+                filename = f"{safe_name}{file_ext}"
             else:
                 # Extract filename from URL
                 parsed_url = urlparse(url)

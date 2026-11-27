@@ -107,6 +107,3 @@ def test_latest_route_requires_auth_and_returns_file(monkeypatch, tmp_path):
     assert body["file"]["project_id"] == "workspace-root"
     assert body["file"]["url"].startswith("/api/v1/gallery/projects/workspace-root/assets/frame.png")
     assert body["file"]["modified"]
-
-
-

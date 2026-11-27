@@ -121,8 +121,10 @@ def start_metrics_server(port: int | None = None) -> None:
     try:
         from prometheus_client import start_http_server
 
-        start_http_server(scrape_port)
-        logger.info("Prometheus metrics server listening on port %s", scrape_port)
+        # Bind to 127.0.0.1 by default to avoid unauthenticated scraping exposure (BLENDER-007)
+        prometheus_host = os.getenv("PROMETHEUS_HOST", "127.0.0.1")
+        start_http_server(scrape_port, addr=prometheus_host)
+        logger.info("Prometheus metrics server listening on %s:%s", prometheus_host, scrape_port)
     except OSError as exc:
         logger.error("Failed to start Prometheus metrics server on %s: %s", scrape_port, exc)
 

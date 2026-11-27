@@ -43,80 +43,76 @@ Every tool docstring MUST include:
 
 ```python
 @mcp.tool()
-async def tool_name(
-    param1: str,
-    param2: int = 10,
-    param3: Optional[List[str]] = None
-) -> Dict[str, Any]:
-    '''Brief one-line description of what the tool does.
-    
+async def tool_name(param1: str, param2: int = 10, param3: Optional[List[str]] = None) -> Dict[str, Any]:
+    """Brief one-line description of what the tool does.
+
     Detailed description providing context, use cases, and important notes about
     the tool's behavior. This should help users understand when and how to use it.
-    
+
     Parameters:
         param1: Description of the first parameter
             - Required/Optional status
             - Valid values or constraints
             - Default value if applicable
-        
+
         param2: Description of second parameter (default: 10)
             - Mention defaults in description
             - Explain acceptable ranges
-        
+
         param3: Description of third parameter (default: None)
             - Explain None behavior
             - Describe list element types
-    
+
     Returns:
         Dictionary containing:
             - success: Boolean indicating operation success
             - data: The actual data returned
             - metadata: Additional information about the operation
             - error: Error message if success is False
-    
+
     Usage:
         This tool is used when you need to [explain use case]. It works by
         [explain mechanism]. Best practices include [list recommendations].
-        
+
         Common scenarios:
         - Scenario 1: When to use this tool
         - Scenario 2: Another use case
         - Scenario 3: Special considerations
-    
+
     Examples:
         Basic usage:
             result = await tool_name("value1", 20)
             # Returns: {'success': True, 'data': [...]}
-        
+
         With optional parameters:
             result = await tool_name(
-                "value1", 
+                "value1",
                 param2=50,
                 param3=["option1", "option2"]
             )
             # Returns: {'success': True, 'data': [...], 'metadata': {...}}
-        
+
         Error handling:
             result = await tool_name("invalid_value")
             if not result['success']:
                 print(f"Error: {result['error']}")
             # Returns: {'success': False, 'error': 'Invalid value provided'}
-    
+
     Raises:
         ValueError: When parameter validation fails
         ConnectionError: When database connection is unavailable
         TimeoutError: When operation exceeds timeout limit
-    
+
     Notes:
         - Important consideration 1
         - Important consideration 2
         - Performance implications
         - Security considerations
-    
+
     See Also:
         - related_tool_name: For related functionality
         - another_tool: For alternative approach
-    '''
+    """
     # Implementation
     pass
 ```
@@ -129,7 +125,7 @@ async def tool_name(
 
 **Format:**
 ```python
-'''Single sentence describing the tool's primary purpose.'''
+"""Single sentence describing the tool's primary purpose."""
 ```
 
 **Requirements:**
@@ -150,11 +146,11 @@ async def tool_name(
 
 **Format:**
 ```python
-'''Brief description.
+"""Brief description.
 
 Detailed explanation spanning multiple lines that provides full context,
 explains use cases, and describes the tool's behavior in detail.
-'''
+"""
 ```
 
 **Requirements:**
@@ -445,30 +441,30 @@ def tool():
 **Option 1: Use Single Quotes**
 ```python
 def tool():
-    '''
+    """
     Example usage:
         data = {"key": "value"}  # ✅ GOOD
-    '''
+    """
 ```
 
 **Option 2: Use Escaped Quotes**
 ```python
 def tool():
-    '''
+    """
     Example usage:
         # Use escaped quotes for multi-line strings
         query = "SELECT * FROM table"  # ✅ GOOD
-    '''
+    """
 ```
 
 **Option 3: Describe Instead of Show**
 ```python
 def tool():
-    '''
+    """
     Example usage:
         # For multi-line strings, use appropriate quoting
         query = "Your SQL query here"  # ✅ GOOD
-    '''
+    """
 ```
 
 ---

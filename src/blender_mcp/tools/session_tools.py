@@ -126,12 +126,12 @@ def _register_session_tools() -> None:
                         "Set BLENDER_EXECUTABLE env var to the correct path.",
                     }
 
-                cmd = [exe, "--enable-autoexec"]
+                cmd = [exe, "--disable-autoexec"]  # BLENDER-003
                 if blend_file and Path(blend_file).exists():
                     cmd.append(blend_file)
 
                 # Launch detached (no --background = opens GUI)
-                _blender_process = subprocess.Popen(
+                _blender_process = subprocess.Popen(  # noqa: S603
                     cmd,
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,

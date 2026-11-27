@@ -18,7 +18,6 @@ import os
 import re
 import secrets
 import sys
-import tempfile
 import threading
 import time
 from logging.handlers import RotatingFileHandler
@@ -60,6 +59,28 @@ class _MemoryLogHandler(logging.Handler):
             self.handleError(record)
 
 
+import re as _re
+
+_REDACT_PATTERN = _re.compile(
+    r"((?:token|api[_-]?key|password|secret|bearer|authorization|sketchfab[_-]?token"
+    r"|worker[_-]?key|mcp[_-]?password)\s*[=:]\s*)[^\s,}\]\"']+",
+    _re.IGNORECASE,
+)
+
+
+class _RedactingFilter(logging.Filter):
+    """Strip credential values from log records before they are emitted (BLENDER-013)."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        try:
+            record.msg = _REDACT_PATTERN.sub(r"\1[REDACTED]", str(record.msg))
+            # Prevent % formatting from re-exposing secrets stored in record.args
+            record.args = None
+        except Exception:
+            pass
+        return True
+
+
 def setup_logging(log_level: str = "INFO") -> None:
     """Configure stdlib logging with stderr, rotating file, and in-memory buffer."""
     root = logging.getLogger()
@@ -67,11 +88,13 @@ def setup_logging(log_level: str = "INFO") -> None:
     for h in root.handlers[:]:
         root.removeHandler(h)
 
+    redact = _RedactingFilter()
     fmt = logging.Formatter("%(asctime)s | %(levelname)-8s | %(name)s:%(funcName)s:%(lineno)d - %(message)s")
 
     stderr = logging.StreamHandler(sys.stderr)
     stderr.setLevel(getattr(logging, log_level.upper(), logging.INFO))
     stderr.setFormatter(fmt)
+    stderr.addFilter(redact)
     root.addHandler(stderr)
 
     log_dir = Path(__file__).resolve().parent.parent.parent / "logs"
@@ -84,10 +107,12 @@ def setup_logging(log_level: str = "INFO") -> None:
     )
     fh.setLevel(logging.DEBUG)
     fh.setFormatter(fmt)
+    fh.addFilter(redact)
     root.addHandler(fh)
 
     memory_handler = _MemoryLogHandler()
     memory_handler.setLevel(logging.DEBUG)
+    memory_handler.addFilter(redact)
     root.addHandler(memory_handler)
 
     logger.info("Logging initialized: stderr=%s file=%s", log_level, log_dir / "blender-mcp.log")
@@ -114,8 +139,10 @@ from starlette.responses import FileResponse, HTMLResponse, JSONResponse, PlainT
 from starlette.routing import Route
 
 _DASH_COOKIE = "blender_dash_session"
+# Server-side session revocation set — holds hashes of revoked session tokens (BLENDER-015)
+_revoked_sessions: set[str] = set()
 _DASH_SESSION_SECONDS = int(os.environ.get("BLENDER_DASH_SESSION_SECONDS", str(15 * 60)))
-_DASH_SESSION_SECONDS_MIN = 5 * 60   # 5 minutes
+_DASH_SESSION_SECONDS_MIN = 5 * 60  # 5 minutes
 _DASH_SESSION_SECONDS_MAX = 7 * 24 * 60 * 60  # 7 days
 
 
@@ -162,8 +189,10 @@ def _dashboard_basic_valid(request) -> bool:
         username, password = raw.decode("utf-8").split(":", 1)
     except (ValueError, UnicodeError, binascii.Error):
         return False
-    return bool(hmac.compare_digest(username.encode(), credentials[0].encode()) &
-                hmac.compare_digest(password.encode(), credentials[1].encode()))
+    return bool(
+        hmac.compare_digest(username.encode(), credentials[0].encode())
+        & hmac.compare_digest(password.encode(), credentials[1].encode())
+    )
 
 
 def _dashboard_signing_key() -> bytes:
@@ -192,10 +221,19 @@ def _dashboard_session_valid(request) -> bool:
         hmac.new(_dashboard_signing_key(), encoded.encode(), hashlib.sha256).hexdigest(), signature
     ):
         return False
+    # Check server-side revocation set (BLENDER-015)
+    token_hash = hashlib.sha256(cookie.encode()).hexdigest()
+    if token_hash in _revoked_sessions:
+        return False
     try:
         payload = base64.b64decode(encoded + "=" * (-len(encoded) % 4), altchars=b"-_", validate=True).decode()
         expiry, nonce = payload.split(":", 1)
-        return nonce.isascii() and len(nonce) == 32 and all(c in "0123456789abcdef" for c in nonce) and int(time.time()) < int(expiry) <= int(time.time()) + _DASH_SESSION_SECONDS
+        return (
+            nonce.isascii()
+            and len(nonce) == 32
+            and all(c in "0123456789abcdef" for c in nonce)
+            and int(time.time()) < int(expiry) <= int(time.time()) + _DASH_SESSION_SECONDS
+        )
     except (ValueError, UnicodeError, binascii.Error):
         return False
 
@@ -371,7 +409,10 @@ _LOGIN_MAX_TRACKED_CLIENTS = 256
 _LOGIN_FILE_MAX_GLOBAL_STAMPS = 4096
 _LOGIN_FILE_MAX_KEY_LENGTH = 64
 
-_DEFAULT_LOGIN_LIMIT_FILE = Path(tempfile.gettempdir()) / "blender-mcp-login-limits.json"
+# Store login-limiter file in a private state directory, not in the shared /tmp,
+# to prevent symlink attacks and cross-user interference (BLENDER-014).
+_state_dir = Path(os.getenv("BLENDER_WORKSPACE", str(Path.home() / ".blender-mcp"))) / ".blender-farm"
+_DEFAULT_LOGIN_LIMIT_FILE = _state_dir / "login-limits.json"
 
 
 def _login_limit_file() -> Path:
@@ -420,7 +461,9 @@ def _bound_login_failures(failures: dict[str, list[float]], global_failures: lis
     return changed
 
 
-def _login_retry_from(failures: dict[str, list[float]], global_failures: list[float], client_key: str, now: float) -> int:
+def _login_retry_from(
+    failures: dict[str, list[float]], global_failures: list[float], client_key: str, now: float
+) -> int:
     retry = 0
     stamps = failures.get(client_key, [])
     if len(stamps) >= _LOGIN_MAX_ATTEMPTS:
@@ -476,7 +519,9 @@ class _LoginLimiter:
                     if clean:
                         failures[key] = clean
         raw_global = payload.get("global") if isinstance(payload, dict) else None
-        global_failures = cls._timestamps(raw_global)[-_LOGIN_FILE_MAX_GLOBAL_STAMPS:] if isinstance(raw_global, list) else []
+        global_failures = (
+            cls._timestamps(raw_global)[-_LOGIN_FILE_MAX_GLOBAL_STAMPS:] if isinstance(raw_global, list) else []
+        )
         return failures, global_failures
 
     def _open(self, path: Path):
@@ -484,8 +529,11 @@ class _LoginLimiter:
         if module is None:
             return None
         try:
-            path.parent.mkdir(parents=True, exist_ok=True)
-            handle = open(path, "a+", encoding="utf-8")
+            # Create state dir with 0700 so only the owning user can list/enter it (BLENDER-014)
+            path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+            # O_NOFOLLOW prevents symlink-based attacks (BLENDER-014)
+            fd = os.open(str(path), os.O_RDWR | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0), 0o600)
+            handle = os.fdopen(fd, "a+", encoding="utf-8")
         except OSError:
             return None
         try:
@@ -647,12 +695,9 @@ class _ApiKeyMiddleware(BaseHTTPMiddleware):
         "/api/status",
         "/api/v1/status",
         "/api/v1/health",
-        "/api/v1/diagnostics",
-        "/viewer",
-        "/viewer/",
-        "/api/v1/viewer/state",
-        "/api/v1/viewer/latest",
-        "/api/v1/viewer/video",
+        # Diagnostics, viewer state/media endpoints removed from public paths (BLENDER-012):
+        # /api/v1/diagnostics, /api/v1/viewer/state, /api/v1/viewer/latest,
+        # /api/v1/viewer/video — these now require authentication.
     }
 
     _PROTECTED_PREFIXES = ("/api", "/mcp", "/tool", "/metrics")
@@ -677,6 +722,7 @@ class _ApiKeyMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request, call_next):
         path = request.url.path
         from blender_mcp.utils.farm_workers import mcp_role
+
         if mcp_role() == "worker":
             health_paths = {
                 "/health",
@@ -705,17 +751,31 @@ class _ApiKeyMiddleware(BaseHTTPMiddleware):
         login_asset = path in {"/login", "/login/"} and request.method in {"GET", "HEAD"}
         login_icon = path.lstrip("/") in _PUBLIC_LOGIN_ICONS and request.method in {"GET", "HEAD"}
         public_login_resource = dashboard_auth and _public_login_resource(request)
-        dashboard = request.method in {"GET", "HEAD"} and not auth_endpoint and (
-            path == "/" or path.startswith("/assets/") or (
-                not path.startswith(self._PROTECTED_PREFIXES) and not public_service
+        dashboard = (
+            request.method in {"GET", "HEAD"}
+            and not auth_endpoint
+            and (
+                path == "/"
+                or path.startswith("/assets/")
+                or (not path.startswith(self._PROTECTED_PREFIXES) and not public_service)
             )
         )
 
         # Never serve the dashboard shell (and its injected bearer key) when
         # Basic credentials are enabled but not completely configured.
-        if dashboard_auth and (dashboard or auth_endpoint or login_asset or login_icon or public_login_resource) and not _dashboard_credentials():
+        if (
+            dashboard_auth
+            and (dashboard or auth_endpoint or login_asset or login_icon or public_login_resource)
+            and not _dashboard_credentials()
+        ):
             return JSONResponse({"error": "dashboard authentication unavailable"}, status_code=503)
-        if dashboard_auth and request.method in {"GET", "HEAD"} and path.startswith("/assets/") and _PUBLIC_BUNDLE_NAME.fullmatch(path.removeprefix("/assets/")) and not public_login_resource:
+        if (
+            dashboard_auth
+            and request.method in {"GET", "HEAD"}
+            and path.startswith("/assets/")
+            and _PUBLIC_BUNDLE_NAME.fullmatch(path.removeprefix("/assets/"))
+            and not public_login_resource
+        ):
             return PlainTextResponse("Not Found", status_code=404)
         if dashboard_auth and login_icon:
             if not public_login_resource:
@@ -757,7 +817,10 @@ class _ApiKeyMiddleware(BaseHTTPMiddleware):
             return JSONResponse(
                 {"error": "dashboard authentication required"},
                 status_code=401,
-                headers={"WWW-Authenticate": 'Basic realm="Blender MCP Dashboard", charset="UTF-8"', "Cache-Control": "no-store"},
+                headers={
+                    "WWW-Authenticate": 'Basic realm="Blender MCP Dashboard", charset="UTF-8"',
+                    "Cache-Control": "no-store",
+                },
             )
         if not dashboard_auth and self._public_dashboard_request(request):
             return await call_next(request)
@@ -1083,9 +1146,7 @@ async def _viewer_state(request):
         response.update({"preview": preview.relative_to(root).as_posix(), "size_bytes": preview.stat().st_size})
     if video is not None:
         response.update({"video": video.relative_to(root).as_posix(), "video_size_bytes": video.stat().st_size})
-    return JSONResponse(
-        response
-    )
+    return JSONResponse(response)
 
 
 async def _viewer_latest(request):
@@ -1187,17 +1248,27 @@ async def _dashboard_login(request):
     credentials = _dashboard_credentials()
     username = payload.get("username")
     password = payload.get("password")
-    if not isinstance(username, str) or not isinstance(password, str) or not credentials or not (
-        hmac.compare_digest(username.encode(), credentials[0].encode()) &
-        hmac.compare_digest(password.encode(), credentials[1].encode())
+    if (
+        not isinstance(username, str)
+        or not isinstance(password, str)
+        or not credentials
+        or not (
+            hmac.compare_digest(username.encode(), credentials[0].encode())
+            & hmac.compare_digest(password.encode(), credentials[1].encode())
+        )
     ):
         _record_login_failure(request)
         return JSONResponse({"error": "invalid credentials"}, status_code=401, headers={"Cache-Control": "no-store"})
     _clear_login_failures(request)
     response = JSONResponse({"authenticated": True}, headers={"Cache-Control": "no-store"})
     response.set_cookie(
-        _DASH_COOKIE, _dashboard_new_session(), max_age=_DASH_SESSION_SECONDS,
-        httponly=True, secure=_effective_scheme(request) == "https", samesite="lax", path="/",
+        _DASH_COOKIE,
+        _dashboard_new_session(),
+        max_age=_DASH_SESSION_SECONDS,
+        httponly=True,
+        secure=_effective_scheme(request) == "https",
+        samesite="lax",
+        path="/",
     )
     return response
 
@@ -1221,27 +1292,43 @@ async def _dashboard_logout(request):
         return JSONResponse({"error": "origin not allowed"}, status_code=403)
     if not _dashboard_session_valid(request):
         return JSONResponse({"authenticated": False}, status_code=401, headers={"Cache-Control": "no-store"})
+    # Revoke the token server-side so a copied cookie becomes invalid immediately (BLENDER-015)
+    cookie = request.cookies.get(_DASH_COOKIE, "")
+    if cookie:
+        _revoked_sessions.add(hashlib.sha256(cookie.encode()).hexdigest())
+        # Keep the revocation set bounded to avoid unbounded memory growth
+        if len(_revoked_sessions) > 10000:
+            _revoked_sessions.clear()
     response = JSONResponse({"authenticated": False}, headers={"Cache-Control": "no-store"})
     response.delete_cookie(_DASH_COOKIE, path="/")
     return response
 
 
 def _dashboard_index():
-    """Serve the built dashboard shell, auto-injecting the API key for local control-plane roles."""
+    """Serve the built dashboard shell.
+
+    The API key is never injected into the HTML response — doing so would expose
+    the admin bearer token to any client that can reach GET / without authentication.
+    Dashboard JS must obtain credentials through the authenticated login flow instead.
+    """
     index = _dashboard_dist / "index.html"
     if not index.is_file():
         return RedirectResponse(url="/viewer", status_code=307)
-    key = os.getenv("BLENDER_MCP_API_KEY", "").strip()
-    if key and not any(os.environ.get(f"BLENDER_MCP_{role}_KEY", "").strip() for role in ("VIEWER", "OPERATOR")):
-        from blender_mcp.utils.farm_workers import mcp_role
-
-        if mcp_role() in {"stand-alone", "master"}:
-            script_key = json.dumps(key).replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
-            script = "<script>window.__BLENDER_MCP_API_KEY__=" + script_key + ";</script>"
-            html = index.read_text(encoding="utf-8")
-            html = html.replace("</head>", script + "</head>", 1) if "</head>" in html else script + html
-            return HTMLResponse(html, headers={"Cache-Control": "private, no-store"})
-    return FileResponse(index)
+    # Security headers applied here (BLENDER-015)
+    _sec_headers = {
+        "Content-Security-Policy": (
+            "default-src 'self'; "
+            "script-src 'self' 'unsafe-inline'; "
+            "style-src 'self' 'unsafe-inline'; "
+            "img-src 'self' data:; "
+            "connect-src 'self'"
+        ),
+        "X-Frame-Options": "DENY",
+        "X-Content-Type-Options": "nosniff",
+        "Referrer-Policy": "no-referrer",
+        "Cache-Control": "private, no-store",
+    }
+    return FileResponse(index, headers=_sec_headers)
 
 
 async def _root_page(request):
@@ -1409,23 +1496,28 @@ def main_stdio():
 def main_http(host="127.0.0.1", port=10771):
     """Entry point for HTTP mode - for web-based MCP clients.
 
+    Uses asgi_app (which includes _ApiKeyMiddleware) so authentication is enforced
+    consistently regardless of which entry point is used (BLENDER-007).
+
     Args:
         host: Host to bind to
         port: Port to bind to
     """
     import logging
 
+    import uvicorn
+
     logging.basicConfig(level=logging.INFO)
 
-    logger = logging.getLogger(__name__)
-    logger.info(f"[HTTP] Starting Blender MCP server on {host}:{port}")
+    _logger = logging.getLogger(__name__)
+    _logger.info(f"[HTTP] Starting Blender MCP server on {host}:{port}")
 
     try:
-        app.run(transport="http", host=host, port=port)
+        uvicorn.run(asgi_app, host=host, port=port, log_level="info")
     except KeyboardInterrupt:
-        logger.info("[HTTP] Server stopped by user")
+        _logger.info("[HTTP] Server stopped by user")
     except Exception as e:
-        logger.error(f"[HTTP] Server error: {e}")
+        _logger.error(f"[HTTP] Server error: {e}")
         raise
 
 

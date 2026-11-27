@@ -41,16 +41,16 @@ Every parameter needs:
 ```python
 """
 Args:
-    query (str, REQUIRED): 
+    query (str, REQUIRED):
         Search term for bookmark titles/URLs
         Examples: "plex", "immich", "python tutorial"
-        
-    profile_path (str, OPTIONAL): 
+
+    profile_path (str, OPTIONAL):
         Full path to Firefox profile directory
         Format: "C:\\Users\\{username}\\AppData\\Roaming\\Mozilla\\Firefox\\Profiles\\{profile}"
         Example: "C:\\Users\\sandr\\AppData\\Roaming\\Mozilla\\Firefox\\Profiles\\airiswdq.default-release"
         Default: Auto-detects default profile using profiles.ini
-        
+
     limit (int, OPTIONAL):
         Maximum results to return
         Range: 1-100
@@ -92,11 +92,11 @@ Common Issues:
     1. "Failed to connect to database"
        → Firefox is still running. Close it completely (check system tray)
        → Alternative: Use export_bookmarks() if you need access while Firefox is open
-       
-    2. "Profile not found" 
+
+    2. "Profile not found"
        → Use get_firefox_profiles() to find the correct path
        → Check that path uses double backslashes on Windows
-       
+
     3. "Permission denied"
        → Run as administrator if profile is in protected directory
        → Check that places.sqlite file exists and is readable
@@ -145,15 +145,15 @@ Windows/Linux/Mac differences matter!
 ```python
 """
 Platform Notes:
-    Windows: 
+    Windows:
         - Use double backslashes in paths: "C:\\Users\\..."
         - Profile location: %APPDATA%\\Mozilla\\Firefox\\Profiles
         - Check Task Manager for running Firefox processes
-        
+
     Linux:
         - Profile location: ~/.mozilla/firefox/
         - Use forward slashes: "/home/user/.mozilla/..."
-        
+
     macOS:
         - Profile location: ~/Library/Application Support/Firefox/Profiles/
         - Firefox may run in background - check Activity Monitor

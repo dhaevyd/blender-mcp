@@ -26,7 +26,9 @@ def _clear_caches():
 
 
 def _fake_detect_virt(monkeypatch, output: str | None):
-    monkeypatch.setattr(host.shutil, "which", lambda name: "/usr/bin/systemd-detect-virt" if output is not None else None)
+    monkeypatch.setattr(
+        host.shutil, "which", lambda name: "/usr/bin/systemd-detect-virt" if output is not None else None
+    )
 
     def fake_run(*args, **kwargs):
         return subprocess.CompletedProcess(args=args, returncode=0, stdout=(output or "") + "\n", stderr="")
@@ -35,8 +37,8 @@ def _fake_detect_virt(monkeypatch, output: str | None):
 
 
 def _tmp(monkeypatch, name, content):
-    from pathlib import Path
     import tempfile
+    from pathlib import Path
 
     path = Path(tempfile.mkdtemp()) / name
     if content is not None:
@@ -45,8 +47,8 @@ def _tmp(monkeypatch, name, content):
 
 
 def _tmp_dir(monkeypatch, sys_vendor):
-    from pathlib import Path
     import tempfile
+    from pathlib import Path
 
     root = Path(tempfile.mkdtemp())
     if sys_vendor is not None:
@@ -58,7 +60,12 @@ def test_gpu_absent_when_probe_reports_only_virtual_adapters(monkeypatch):
     monkeypatch.setattr(
         host,
         "gpu_probe",
-        lambda: {"nvidia": False, "amd": False, "intel": False, "adapters": [{"card": "card0", "driver": "virtio-pci"}]},
+        lambda: {
+            "nvidia": False,
+            "amd": False,
+            "intel": False,
+            "adapters": [{"card": "card0", "driver": "virtio-pci"}],
+        },
     )
     assert host.host_gpu_present() is False
 

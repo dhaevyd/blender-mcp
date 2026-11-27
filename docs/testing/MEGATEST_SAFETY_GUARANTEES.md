@@ -13,7 +13,7 @@ This is non-negotiable. Every design decision prioritizes production data safety
 ```python
 # Test uses ONLY these paths - NEVER production
 test_dir = Path(tempfile.mkdtemp(prefix="megatest_"))  # System temp directory
-test_db = test_dir / "test.db"                         # Isolated DB
+test_db = test_dir / "test.db"  # Isolated DB
 
 # Examples:
 # Windows: C:\Users\sandr\AppData\Local\Temp\megatest_xyz123\
@@ -38,15 +38,17 @@ PRODUCTION_PATHS_TO_PROTECT = [
     # Add your actual production paths here
 ]
 
+
 def is_production_path(path: Path) -> bool:
     """Detect if path is in production directories."""
     path = path.resolve()
-    
+
     for prod_path in PRODUCTION_PATHS_TO_PROTECT:
         if path == prod_path or path.is_relative_to(prod_path):
             return True  # PRODUCTION DETECTED!
-    
+
     return False
+
 
 # ENFORCED before ANY test operations
 if is_production_path(test_db):
@@ -64,18 +66,19 @@ if is_production_path(test_dir):
 def is_safe_test_path(path: Path) -> bool:
     """Verify path is in approved test locations."""
     path_str = str(path).lower()
-    
+
     # ONLY these paths are allowed for testing
     safe_indicators = [
-        "test_data",       # Repository test data
-        "megatest",        # Megatest-specific
+        "test_data",  # Repository test data
+        "megatest",  # Megatest-specific
         tempfile.gettempdir(),  # System temp
-        "tests/",          # Test directory
-        "/tmp/",           # Unix temp
-        "temp/",           # Temp directory
+        "tests/",  # Test directory
+        "/tmp/",  # Unix temp
+        "temp/",  # Temp directory
     ]
-    
+
     return any(indicator.lower() in path_str for indicator in safe_indicators)
+
 
 # ENFORCED: Test path MUST match whitelist
 if not is_safe_test_path(test_dir):
@@ -197,8 +200,8 @@ def validate_test_isolation(request):
 ```python
 # Megatest creates its own config - NEVER uses system config
 test_config = AdvancedMemoryConfig(
-    database_path=str(test_db),        # Explicit test DB
-    projects={...}                      # Explicit test projects
+    database_path=str(test_db),  # Explicit test DB
+    projects={...},  # Explicit test projects
 )
 
 # System config is READ ONLY (for production path detection)
@@ -396,12 +399,7 @@ def cleanup_and_verify():
 ```python
 # Created in code, NEVER saved to file
 test_config = AdvancedMemoryConfig(
-    database_path="/tmp/megatest_xyz/test.db",
-    projects={
-        "test_personal": {
-            "home": "/tmp/megatest_xyz/test_personal"
-        }
-    }
+    database_path="/tmp/megatest_xyz/test.db", projects={"test_personal": {"home": "/tmp/megatest_xyz/test_personal"}}
 )
 ```
 

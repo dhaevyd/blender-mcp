@@ -257,7 +257,11 @@ def resolve_asset(project_id: str, filename: str) -> tuple[Path, str]:
     root = workspace_root()
     project = safe_project(root, project_id)
     target = project / relative
-    if any(part.is_symlink() for part in [project, *list(target.parents)[:-1], target]) or not target.is_file() or project not in target.resolve().parents:
+    if (
+        any(part.is_symlink() for part in [project, *list(target.parents)[:-1], target])
+        or not target.is_file()
+        or project not in target.resolve().parents
+    ):
         raise FileNotFoundError("asset not found")
     return target, _ALLOWED[target.suffix.lower()]
 
@@ -265,7 +269,12 @@ def resolve_asset(project_id: str, filename: str) -> tuple[Path, str]:
 def open_asset(project_id: str, filename: str) -> tuple[int, str, int, str]:
     """Open media beneath the workspace using no-follow directory descriptors."""
     relative = Path(filename)
-    if relative.is_absolute() or not relative.parts or ".." in relative.parts or relative.suffix.lower() not in _ALLOWED:
+    if (
+        relative.is_absolute()
+        or not relative.parts
+        or ".." in relative.parts
+        or relative.suffix.lower() not in _ALLOWED
+    ):
         raise ValueError("unsupported asset")
     root = workspace_root()
     directory, loose = _resolve_gallery_directory(root, project_id)
@@ -301,12 +310,24 @@ def open_asset(project_id: str, filename: str) -> tuple[int, str, int, str]:
 # Only these exact suffixes may be rendered inline; SVG/HTML and other binaries
 # always download as attachments.
 _BROWSE_INLINE = {
-    ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
-    ".webp": "image/webp", ".mp4": "video/mp4", ".webm": "video/webm",
-    ".txt": "text/plain", ".log": "text/plain", ".py": "text/plain",
-    ".json": "text/plain", ".md": "text/plain", ".csv": "text/plain",
-    ".js": "text/plain", ".ts": "text/plain", ".tsx": "text/plain",
-    ".css": "text/plain", ".sh": "text/plain", ".yaml": "text/plain",
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".webp": "image/webp",
+    ".mp4": "video/mp4",
+    ".webm": "video/webm",
+    ".txt": "text/plain",
+    ".log": "text/plain",
+    ".py": "text/plain",
+    ".json": "text/plain",
+    ".md": "text/plain",
+    ".csv": "text/plain",
+    ".js": "text/plain",
+    ".ts": "text/plain",
+    ".tsx": "text/plain",
+    ".css": "text/plain",
+    ".sh": "text/plain",
+    ".yaml": "text/plain",
     ".yml": "text/plain",
 }
 
@@ -317,11 +338,14 @@ def _browser_parts(path: str, *, allow_root: bool = False) -> tuple[str, ...]:
     if not path:
         return ()
     parts = path.split("/")
-    if (path.startswith("/") or "\\" in path or any(
-        part in {"", ".", ".."} or part.startswith(".") or
-        any(unicodedata.category(char) == "Cc" for char in part)
-        for part in parts
-    )):
+    if (
+        path.startswith("/")
+        or "\\" in path
+        or any(
+            part in {"", ".", ".."} or part.startswith(".") or any(unicodedata.category(char) == "Cc" for char in part)
+            for part in parts
+        )
+    ):
         raise ValueError("invalid workspace path")
     return tuple(parts)
 
@@ -508,19 +532,27 @@ def browse_workspace(path: str = "") -> list[dict[str, Any]]:
                 continue
             is_folder = stat.S_ISDIR(info.st_mode)
             relative = "/".join((*parts, name))
-            entries.append({
-                "name": name, "path": relative,
-                "type": "folder" if is_folder else "file",
-                "size": info.st_size if not is_folder else None,
-                "modified": datetime.fromtimestamp(info.st_mtime, tz=UTC).isoformat(),
-                "format": "Folder" if is_folder else (Path(name).suffix[1:].upper() or "File"),
-                "preview": "none" if is_folder else (
-                    "image" if Path(name).suffix.lower() in {".png", ".jpg", ".jpeg", ".webp"}
-                    else "video" if Path(name).suffix.lower() in {".mp4", ".webm"}
-                    else "text" if _BROWSE_INLINE.get(Path(name).suffix.lower()) == "text/plain"
-                    else "none"
-                ),
-            })
+            entries.append(
+                {
+                    "name": name,
+                    "path": relative,
+                    "type": "folder" if is_folder else "file",
+                    "size": info.st_size if not is_folder else None,
+                    "modified": datetime.fromtimestamp(info.st_mtime, tz=UTC).isoformat(),
+                    "format": "Folder" if is_folder else (Path(name).suffix[1:].upper() or "File"),
+                    "preview": "none"
+                    if is_folder
+                    else (
+                        "image"
+                        if Path(name).suffix.lower() in {".png", ".jpg", ".jpeg", ".webp"}
+                        else "video"
+                        if Path(name).suffix.lower() in {".mp4", ".webm"}
+                        else "text"
+                        if _BROWSE_INLINE.get(Path(name).suffix.lower()) == "text/plain"
+                        else "none"
+                    ),
+                }
+            )
             if not is_folder:
                 records.append((relative, info.st_mtime))
         _with_added(entries, records)
@@ -536,9 +568,14 @@ def _sorted_matches(matches: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 def search_workspace(query: str, *, max_results: int = 100, max_entries: int = 5000) -> dict[str, Any]:
     """Search visible names across the workspace with bounded, no-follow walks."""
-    if (not isinstance(query, str) or not query.strip() or len(query) > 100
-            or "/" in query or "\\" in query
-            or any(unicodedata.category(char) == "Cc" for char in query)):
+    if (
+        not isinstance(query, str)
+        or not query.strip()
+        or len(query) > 100
+        or "/" in query
+        or "\\" in query
+        or any(unicodedata.category(char) == "Cc" for char in query)
+    ):
         raise ValueError("invalid search query")
     if max_results < 1 or max_entries < 1:
         raise ValueError("invalid search limit")
@@ -579,18 +616,27 @@ def search_workspace(query: str, *, max_results: int = 100, max_entries: int = 5
                             return finish(True)
                         is_folder = stat.S_ISDIR(info.st_mode)
                         suffix = Path(name).suffix.lower()
-                        matches.append({
-                            "name": name, "path": path, "type": "folder" if is_folder else "file",
-                            "size": None if is_folder else info.st_size,
-                            "modified": datetime.fromtimestamp(info.st_mtime, tz=UTC).isoformat(),
-                            "format": "Folder" if is_folder else (suffix[1:].upper() or "File"),
-                            "preview": "none" if is_folder else (
-                                "image" if suffix in {".png", ".jpg", ".jpeg", ".webp"}
-                                else "video" if suffix in {".mp4", ".webm"}
-                                else "text" if _BROWSE_INLINE.get(suffix) == "text/plain"
-                                else "none"
-                            ),
-                        })
+                        matches.append(
+                            {
+                                "name": name,
+                                "path": path,
+                                "type": "folder" if is_folder else "file",
+                                "size": None if is_folder else info.st_size,
+                                "modified": datetime.fromtimestamp(info.st_mtime, tz=UTC).isoformat(),
+                                "format": "Folder" if is_folder else (suffix[1:].upper() or "File"),
+                                "preview": "none"
+                                if is_folder
+                                else (
+                                    "image"
+                                    if suffix in {".png", ".jpg", ".jpeg", ".webp"}
+                                    else "video"
+                                    if suffix in {".mp4", ".webm"}
+                                    else "text"
+                                    if _BROWSE_INLINE.get(suffix) == "text/plain"
+                                    else "none"
+                                ),
+                            }
+                        )
                         if not is_folder:
                             records.append((path, info.st_mtime))
                     if stat.S_ISDIR(info.st_mode):
@@ -890,13 +936,15 @@ def list_trash(workspace: str | Path | None = None) -> list[dict[str, Any]]:
                     continue
                 if kind not in {"file", "folder", "symlink"}:
                     continue
-                result.append({
-                    "trash_id": candidate.name,
-                    "name": name,
-                    "original_path": original,
-                    "type": kind,
-                    "deleted_at": deleted_at,
-                })
+                result.append(
+                    {
+                        "trash_id": candidate.name,
+                        "name": name,
+                        "original_path": original,
+                        "type": kind,
+                        "deleted_at": deleted_at,
+                    }
+                )
             except (OSError, ValueError):
                 continue
     result.sort(key=lambda item: item["deleted_at"], reverse=True)
@@ -1133,7 +1181,7 @@ def move_workspace_entry(workspace: str | Path | None, rel_path: str, dest_folde
         raise TrashRefused("that item is already in this folder")
     if dest_parts[: len(parts)] == parts:
         raise TrashRefused("a folder cannot be moved into itself")
-    new_parts = dest_parts + (parts[-1],)
+    new_parts = (*dest_parts, parts[-1])
     if _entry_stat(base, new_parts) is not None:
         raise FileExistsError("an item with that name already exists there")
 

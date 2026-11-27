@@ -31,14 +31,16 @@ class FakeWorker:
         self.files: dict[str, bytes] = {}
         self.rendered: list[int] = []
         self.rendered_gpu: list[tuple[int, int, str]] = []
-        self.gpu_inventory = [{
-            "index": 0,
-            "name": "Fake GPU",
-            "backend": "NVIDIA",
-            "memory_total_mib": 8192,
-            "memory_used_mib": 0,
-            "memory_free_mib": 8192,
-        }]
+        self.gpu_inventory = [
+            {
+                "index": 0,
+                "name": "Fake GPU",
+                "backend": "NVIDIA",
+                "memory_total_mib": 8192,
+                "memory_used_mib": 0,
+                "memory_free_mib": 8192,
+            }
+        ]
 
     async def list_tools(self):
         return [{"name": "blender_farm_worker"}]
@@ -54,7 +56,11 @@ class FakeWorker:
             }
         if operation == "sync_project":
             self.bundle_entries = zipfile.ZipFile(io.BytesIO(base64.b64decode(arguments["bundle_base64"]))).namelist()
-            return {"success": True, "project_path": f"farm-projects/{arguments['project_id']}/scene.blend", "bundle_sha256": arguments["bundle_sha256"]}
+            return {
+                "success": True,
+                "project_path": f"farm-projects/{arguments['project_id']}/scene.blend",
+                "bundle_sha256": arguments["bundle_sha256"],
+            }
         if operation == "render_frame":
             await asyncio.sleep(0.001)
             frame = arguments["frame"]
@@ -71,7 +77,11 @@ class FakeWorker:
             }
         if operation == "collect_output":
             data = self.files[arguments["file_path"]]
-            return {"success": True, "content_base64": base64.b64encode(data).decode(), "sha256": hashlib.sha256(data).hexdigest()}
+            return {
+                "success": True,
+                "content_base64": base64.b64encode(data).decode(),
+                "sha256": hashlib.sha256(data).hexdigest(),
+            }
         if operation in {"files_delete", "files_list", "files_write", "validate_project", "list_frames"}:
             return {"success": True}
         raise AssertionError(operation)
@@ -135,8 +145,22 @@ async def test_coordinator_selects_the_largest_available_gpu_for_a_frame(tmp_pat
     worker = WorkerConfig("gpu-a", "http://127.0.0.1:10849/mcp", "secret-a")
     fake = FakeWorker(worker)
     fake.gpu_inventory = [
-        {"index": 0, "name": "Small GPU", "backend": "NVIDIA", "memory_total_mib": 8192, "memory_used_mib": 5692, "memory_free_mib": 2500},
-        {"index": 1, "name": "48 GB GPU", "backend": "NVIDIA", "memory_total_mib": 49152, "memory_used_mib": 43152, "memory_free_mib": 6000},
+        {
+            "index": 0,
+            "name": "Small GPU",
+            "backend": "NVIDIA",
+            "memory_total_mib": 8192,
+            "memory_used_mib": 5692,
+            "memory_free_mib": 2500,
+        },
+        {
+            "index": 1,
+            "name": "48 GB GPU",
+            "backend": "NVIDIA",
+            "memory_total_mib": 49152,
+            "memory_used_mib": 43152,
+            "memory_free_mib": 6000,
+        },
     ]
     coordinator = BlenderFarmCoordinator(workspace, tmp_path / "farm.sqlite3", [worker], client_factory=lambda _: fake)
     submitted = await coordinator.submit_render("scene.blend", 1, 2)
@@ -213,6 +237,8 @@ async def test_project_render_rejects_preexisting_renders_symlink(tmp_path):
     outside.mkdir()
     (gallery / "renders").symlink_to(outside, target_is_directory=True)
     worker = WorkerConfig("gpu-a", "http://127.0.0.1:10849/mcp", "secret-a")
-    coordinator = BlenderFarmCoordinator(workspace, tmp_path / "db.sqlite", [worker], client_factory=lambda _: FakeWorker(worker))
+    coordinator = BlenderFarmCoordinator(
+        workspace, tmp_path / "db.sqlite", [worker], client_factory=lambda _: FakeWorker(worker)
+    )
     with pytest.raises(ValueError, match="unsafe"):
         await coordinator.submit_render("scene.blend", 1, 1, gallery_project_id="sample-id")

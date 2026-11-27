@@ -32,7 +32,11 @@ def test_create_list_and_filter_project_assets(monkeypatch, tmp_path):
     (folder / "renders" / "job-1" / "frame_000001.png").write_bytes(b"render")
     (folder / "notes.txt").write_text("ignore")
     assert project["id"] in [p["id"] for p in projects.list_projects()]
-    assert {a["name"] for a in projects.list_assets(project["id"])} == {"still.PNG", "clip.mp4", "renders/job-1/frame_000001.png"}
+    assert {a["name"] for a in projects.list_assets(project["id"])} == {
+        "still.PNG",
+        "clip.mp4",
+        "renders/job-1/frame_000001.png",
+    }
     media, content_type = projects.resolve_asset(project["id"], "clip.mp4")
     assert media.read_bytes() == b"mp4" and content_type == "video/mp4"
 
@@ -51,7 +55,21 @@ def test_reject_project_traversal_and_symlink_escape(monkeypatch, tmp_path):
 
 
 def _request(path_params=None, body=b""):
-    return Request({"type": "http", "method": "GET", "path": "/", "headers": [], "query_string": b"", "server": ("test", 80), "client": ("test", 1), "scheme": "http", "http_version": "1.1", "path_params": path_params or {}}, receive=lambda: None)
+    return Request(
+        {
+            "type": "http",
+            "method": "GET",
+            "path": "/",
+            "headers": [],
+            "query_string": b"",
+            "server": ("test", 80),
+            "client": ("test", 1),
+            "scheme": "http",
+            "http_version": "1.1",
+            "path_params": path_params or {},
+        },
+        receive=lambda: None,
+    )
 
 
 def test_png_media_response_is_inline_and_route_requires_authenticated_middleware(monkeypatch, tmp_path):
@@ -102,16 +120,20 @@ def test_asset_response_stream_closes_descriptor(monkeypatch, tmp_path):
     (tmp_path / project["path"] / "frame.png").write_bytes(b"image bytes")
     original_open_asset = projects.open_asset
     opened = []
+
     def track_open(*args):
         result = original_open_asset(*args)
         opened.append(result[0])
         return result
+
     monkeypatch.setattr("blender_mcp.utils.studio_api.open_asset", track_open)
     response = asyncio.run(asset_get(_request({"project_id": project["id"], "asset_path": "frame.png"})))
+
     async def consume():
         body = b"".join([chunk async for chunk in response.body_iterator])
         await response.background()
         return body
+
     assert asyncio.run(consume()) == b"image bytes"
     with pytest.raises(OSError):
         os.fstat(opened[-1])
@@ -129,8 +151,24 @@ def test_worker_destination_rejects_loopback_and_dns_hosts():
 
 def test_worker_connect_rejects_invalid_endpoint_without_calling_worker():
     async def receive():
-        return {"type": "http.request", "body": b'{"url":"https://user:pass@worker/mcp","api_key":"do-not-log"}', "more_body": False}
-    scope = {"type": "http", "method": "POST", "path": "/api/v1/workers/connect", "headers": [(b"content-type", b"application/json")], "query_string": b"", "server": ("test", 80), "client": ("test", 1), "scheme": "http", "http_version": "1.1", "path_params": {}}
+        return {
+            "type": "http.request",
+            "body": b'{"url":"https://user:pass@worker/mcp","api_key":"do-not-log"}',
+            "more_body": False,
+        }
+
+    scope = {
+        "type": "http",
+        "method": "POST",
+        "path": "/api/v1/workers/connect",
+        "headers": [(b"content-type", b"application/json")],
+        "query_string": b"",
+        "server": ("test", 80),
+        "client": ("test", 1),
+        "scheme": "http",
+        "http_version": "1.1",
+        "path_params": {},
+    }
     response = asyncio.run(connect_worker(Request(scope, receive)))
     assert response.status_code == 400
     assert b"do-not-log" not in response.body

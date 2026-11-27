@@ -30,12 +30,12 @@ _RES_PREFERENCE = {
 
 # Map of ambientCG texture suffixes to Blender node input names
 TEXTURE_MAP: dict[str, dict[str, Any]] = {
-    "Color":            {"input": "Base Color",        "colorspace": "sRGB",    "required": True},
-    "NormalGL":         {"input": "Normal",            "colorspace": "Non-Color","required": False, "normal_map": True},
-    "Roughness":        {"input": "Roughness",         "colorspace": "Non-Color","required": False},
-    "Metalness":        {"input": "Metallic",          "colorspace": "Non-Color","required": False},
-    "AmbientOcclusion": {"input": None,                "colorspace": "Non-Color","required": False, "ao": True},
-    "Displacement":     {"input": "Displacement",      "colorspace": "Non-Color","required": False, "displacement": True},
+    "Color": {"input": "Base Color", "colorspace": "sRGB", "required": True},
+    "NormalGL": {"input": "Normal", "colorspace": "Non-Color", "required": False, "normal_map": True},
+    "Roughness": {"input": "Roughness", "colorspace": "Non-Color", "required": False},
+    "Metalness": {"input": "Metallic", "colorspace": "Non-Color", "required": False},
+    "AmbientOcclusion": {"input": None, "colorspace": "Non-Color", "required": False, "ao": True},
+    "Displacement": {"input": "Displacement", "colorspace": "Non-Color", "required": False, "displacement": True},
 }
 
 
@@ -219,8 +219,8 @@ print("AMBIENTCG_MAT_OK:" + mat_name)
 
 
 __all__ = [
-    "AmbientCGAPI",
     "TEXTURE_MAP",
+    "AmbientCGAPI",
     "build_pbr_material_script",
     "resolve_download_url",
 ]

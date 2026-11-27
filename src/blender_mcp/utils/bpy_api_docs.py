@@ -45,9 +45,9 @@ def fetch_api_doc(identifier: str, *, max_chars: int = 12000) -> dict[str, str]:
     """Download and extract plain text from the Blender API docs page."""
     ident = normalize_identifier(identifier)
     url = docs_url(ident)
-    request = Request(url, headers={"User-Agent": "blender-mcp/1.0 (api-docs)"})
+    request = Request(url, headers={"User-Agent": "blender-mcp/1.0 (api-docs)"})  # noqa: S310
     try:
-        with urlopen(request, timeout=20) as response:
+        with urlopen(request, timeout=20) as response:  # noqa: S310
             raw = response.read().decode("utf-8", errors="replace")
     except HTTPError as exc:
         if exc.code == 404:

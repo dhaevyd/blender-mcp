@@ -93,9 +93,7 @@ def _validated_https_url(url: str) -> urllib.parse.SplitResult:
 
 
 class _HttpsOnlyRedirectHandler(urllib.request.HTTPRedirectHandler):
-    def redirect_request(
-        self, req: Any, fp: Any, code: int, msg: str, headers: Any, newurl: str
-    ) -> Any:
+    def redirect_request(self, req: Any, fp: Any, code: int, msg: str, headers: Any, newurl: str) -> Any:
         _validated_https_url(newurl)
         return super().redirect_request(req, fp, code, msg, headers, newurl)
 
@@ -159,8 +157,8 @@ class RepositoryManager:
             if archive_path.endswith(".zip"):
                 with zipfile.ZipFile(archive_path, "r") as zip_ref:
                     zip_members = zip_ref.infolist()
-                    if sum(member.file_size for member in zip_members if not member.is_dir()) > MAX_ARCHIVE_EXTRACT_BYTES:
-                        raise ValueError("archive expands beyond the 1 GiB extraction limit")
+                    # BLENDER-011: track actual written bytes, not header values
+                    total_written = 0
                     for member in zip_members:
                         destination = _safe_archive_destination(root, member.filename)
                         mode = member.external_attr >> 16
@@ -171,7 +169,11 @@ class RepositoryManager:
                         else:
                             destination.parent.mkdir(parents=True, exist_ok=True)
                             with zip_ref.open(member) as source, destination.open("wb") as output:
-                                shutil.copyfileobj(source, output)
+                                while chunk := source.read(65536):
+                                    total_written += len(chunk)
+                                    if total_written > MAX_ARCHIVE_EXTRACT_BYTES:
+                                        raise ValueError("archive expands beyond the 1 GiB extraction limit")
+                                    output.write(chunk)
                         extracted_files.append(str(destination))
 
             elif archive_path.endswith((".tar.gz", ".tar.bz2", ".tar.xz")):

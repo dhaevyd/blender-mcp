@@ -9,6 +9,7 @@ from blender_mcp.compat import *
 from blender_mcp.decorators import blender_operation
 from blender_mcp.utils.blender_executor import get_blender_executor
 from blender_mcp.utils.gpu_render import build_gpu_setup_snippet, parse_render_device
+from blender_mcp.utils.script_utils import py_str
 
 from ..compat import *
 from .render_handler import render_output_prefix, resolve_render_output
@@ -33,18 +34,18 @@ async def create_scene(scene_name: str = "NewScene") -> str:
     Returns:
         str: Confirmation message with the created scene name
     """
-    script = f'''
+    script = f"""
 
 # Clear existing objects
 bpy.ops.object.select_all(action='SELECT')
 bpy.ops.object.delete(use_global=False, confirm=False)
 
 # Rename current scene
-bpy.context.scene.name = "{scene_name}"
+bpy.context.scene.name = {py_str(scene_name)}
 
 print(f"Scene created: {{bpy.context.scene.name}}")
 print(f"Objects in scene: {{len(bpy.context.scene.objects)}}")
-'''
+"""
 
     await _executor.execute_script(script)
     return f"Created scene: {scene_name}"
@@ -109,13 +110,14 @@ async def set_active_scene(scene_name: str) -> str:
     Returns:
         str: Confirmation message
     """
-    script = f'''
-if "{scene_name}" in bpy.data.scenes:
-    bpy.context.window.scene = bpy.data.scenes["{scene_name}"]
+    _sn = py_str(scene_name)
+    script = f"""
+if {_sn} in bpy.data.scenes:
+    bpy.context.window.scene = bpy.data.scenes[{_sn}]
     print(f"Set active scene to: {{bpy.context.scene.name}}")
 else:
-    print(f"Error: Scene '{scene_name}' not found")
-'''
+    print(f"Error: Scene not found")
+"""
     await _executor.execute_script(script)
     return f"Set active scene to: {scene_name}"
 
@@ -132,18 +134,20 @@ async def link_object_to_scene(object_name: str, scene_name: str) -> str:
     Returns:
         str: Confirmation message
     """
-    script = f'''
-if "{object_name}" not in bpy.data.objects:
-    print(f"Error: Object '{object_name}' not found")
-elif "{scene_name}" not in bpy.data.scenes:
-    print(f"Error: Scene '{scene_name}' not found")
+    _on = py_str(object_name)
+    _sn = py_str(scene_name)
+    script = f"""
+if {_on} not in bpy.data.objects:
+    print("Error: Object not found")
+elif {_sn} not in bpy.data.scenes:
+    print("Error: Scene not found")
 else:
-    obj = bpy.data.objects["{object_name}"]
-    scene = bpy.data.scenes["{scene_name}"]
+    obj = bpy.data.objects[{_on}]
+    scene = bpy.data.scenes[{_sn}]
     if obj.name not in scene.collection.objects:
         scene.collection.objects.link(obj)
-    print(f"Linked object '{object_name}' to scene '{scene_name}'")
-'''
+    print("Linked object to scene")
+"""
     await _executor.execute_script(script)
     return f"Linked object to scene: {scene_name}"
 
@@ -159,13 +163,14 @@ async def create_collection(collection_name: str) -> str:
     Returns:
         str: Confirmation message
     """
-    script = f'''
-if "{collection_name}" not in bpy.data.collections:
-    bpy.data.collections.new("{collection_name}")
-    print(f"Created collection: {collection_name}")
+    _cn = py_str(collection_name)
+    script = f"""
+if {_cn} not in bpy.data.collections:
+    bpy.data.collections.new({_cn})
+    print("Created collection")
 else:
-    print(f"Collection '{collection_name}' already exists")
-'''
+    print("Collection already exists")
+"""
     await _executor.execute_script(script)
     return f"Created collection: {collection_name}"
 
@@ -182,14 +187,16 @@ async def add_to_collection(collection_name: str, object_name: str) -> str:
     Returns:
         str: Confirmation message
     """
-    script = f'''
-if "{object_name}" not in bpy.data.objects:
-    print(f"Error: Object '{object_name}' not found")
-elif "{collection_name}" not in bpy.data.collections:
-    print(f"Error: Collection '{collection_name}' not found")
+    _on = py_str(object_name)
+    _cn = py_str(collection_name)
+    script = f"""
+if {_on} not in bpy.data.objects:
+    print("Error: Object not found")
+elif {_cn} not in bpy.data.collections:
+    print("Error: Collection not found")
 else:
-    obj = bpy.data.objects["{object_name}"]
-    collection = bpy.data.collections["{collection_name}"]
+    obj = bpy.data.objects[{_on}]
+    collection = bpy.data.collections[{_cn}]
 
     # Unlink from current collections
     for col in obj.users_collection:
@@ -197,8 +204,8 @@ else:
 
     # Link to target collection
     collection.objects.link(obj)
-    print(f"Added '{object_name}' to collection '{collection_name}'")
-'''
+    print("Added object to collection")
+"""
     await _executor.execute_script(script)
     return f"Added {object_name} to collection: {collection_name}"
 
@@ -214,15 +221,16 @@ async def set_active_collection(collection_name: str) -> str:
     Returns:
         str: Confirmation message
     """
-    script = f'''
-if "{collection_name}" in bpy.data.collections:
+    _cn = py_str(collection_name)
+    script = f"""
+if {_cn} in bpy.data.collections:
     layer_collection = bpy.context.view_layer.layer_collection
-    layer_collection.children[collection_name].hide_viewport = False
-    bpy.context.view_layer.active_layer_collection = layer_collection.children[collection_name]
-    print(f"Set active collection to: {collection_name}")
+    layer_collection.children[{_cn}].hide_viewport = False
+    bpy.context.view_layer.active_layer_collection = layer_collection.children[{_cn}]
+    print("Set active collection")
 else:
-    print(f"Error: Collection '{collection_name}' not found")
-'''
+    print("Error: Collection not found")
+"""
     await _executor.execute_script(script)
     return f"Set active collection to: {collection_name}"
 

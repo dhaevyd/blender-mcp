@@ -72,7 +72,7 @@ def virtualization() -> dict[str, Any]:
     exe = shutil.which("systemd-detect-virt")
     if exe:
         try:
-            completed = subprocess.run(
+            completed = subprocess.run(  # noqa: S603
                 [exe], capture_output=True, text=True, timeout=3, check=False
             )
             kind = completed.stdout.strip() or None

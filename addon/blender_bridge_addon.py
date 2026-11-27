@@ -30,6 +30,7 @@ bl_info = {
     "category": "System",
 }
 
+import hmac
 import json
 import logging
 import os
@@ -46,8 +47,25 @@ _log = logging.getLogger(__name__)
 # Config from env vars
 # ---------------------------------------------------------------------------
 
-BRIDGE_HOST = os.environ.get("BLENDER_BRIDGE_HOST", "127.0.0.1")
 BRIDGE_PORT = int(os.environ.get("BLENDER_BRIDGE_PORT", "10850"))
+
+# BLENDER-002: Optional shared-secret token; if set all clients must supply it.
+_BRIDGE_TOKEN = os.environ.get("BLENDER_BRIDGE_TOKEN", "").strip()
+
+_requested_host = os.environ.get("BLENDER_BRIDGE_HOST", "127.0.0.1").strip()
+# BLENDER-002: Refuse to bind to a non-loopback address when no token is configured.
+if _requested_host not in ("127.0.0.1", "::1", "localhost") and not _BRIDGE_TOKEN:
+    _log.warning(
+        "BLENDER_BRIDGE_HOST=%r is non-loopback but BLENDER_BRIDGE_TOKEN is not set — "
+        "falling back to 127.0.0.1 to prevent unauthenticated exposure.",
+        _requested_host,
+    )
+    BRIDGE_HOST = "127.0.0.1"
+else:
+    BRIDGE_HOST = _requested_host
+
+# BLENDER-002: Maximum allowed message body size (16 MiB) to prevent memory exhaustion.
+_MAX_FRAME_BYTES = 16 * 1024 * 1024
 
 _stop_event = threading.Event()
 _server_thread: threading.Thread | None = None
@@ -63,6 +81,7 @@ _result_data: dict | None = None
 # ---------------------------------------------------------------------------
 # Add-on Preferences — API keys that survive restarts
 # ---------------------------------------------------------------------------
+
 
 class MCP_AddonPreferences(bpy.types.AddonPreferences):
     bl_idname = __name__
@@ -123,6 +142,7 @@ class MCP_AddonPreferences(bpy.types.AddonPreferences):
 # Socket server — runs in background thread
 # ---------------------------------------------------------------------------
 
+
 def _get_prefs():
     try:
         addon = bpy.context.preferences.addons.get(__name__)
@@ -160,9 +180,14 @@ def _handle_client(client: socket.socket):
             body_len = struct.unpack("!I", buf[:header_len])[0]
             buf = buf[header_len:]
 
+            # BLENDER-002: Reject oversized frames before allocating memory
+            if body_len > _MAX_FRAME_BYTES:
+                _log.warning("Oversized frame rejected: %d bytes from client", body_len)
+                return
+
             # Read body
             while len(buf) < body_len:
-                chunk = client.recv(4096)
+                chunk = client.recv(min(4096, body_len - len(buf)))
                 if not chunk:
                     return
                 buf += chunk
@@ -174,6 +199,16 @@ def _handle_client(client: socket.socket):
             except json.JSONDecodeError as e:
                 _send_response(client, {"status": "error", "message": f"Invalid JSON: {e}"})
                 continue
+
+            # BLENDER-002: Verify shared-secret token when configured
+            if _BRIDGE_TOKEN:
+                supplied = msg.get("token", "")
+                if not hmac.compare_digest(
+                    supplied.encode("utf-8", "replace"),
+                    _BRIDGE_TOKEN.encode("utf-8", "replace"),
+                ):
+                    _send_response(client, {"error": "unauthorized"})
+                    return
 
             cmd = msg.get("type", "")
             params = msg.get("params", {})
@@ -197,15 +232,21 @@ def _handle_client(client: socket.socket):
                 # Wait for result (with timeout)
                 if _result_event.wait(timeout=180):
                     result = _result_data or {}
-                    _send_response(client, {
-                        "status": "success" if result.get("success") else "error",
-                        "result": result,
-                    })
+                    _send_response(
+                        client,
+                        {
+                            "status": "success" if result.get("success") else "error",
+                            "result": result,
+                        },
+                    )
                 else:
-                    _send_response(client, {
-                        "status": "error",
-                        "message": "Execution timed out (180s)",
-                    })
+                    _send_response(
+                        client,
+                        {
+                            "status": "error",
+                            "message": "Execution timed out (180s)",
+                        },
+                    )
                 continue
 
             if cmd == "get_api_keys":
@@ -293,6 +334,7 @@ def _server_loop():
 # Main-thread timer — safe to call bpy here
 # ---------------------------------------------------------------------------
 
+
 def _process_pending():
     global _pending_task, _pending_event, _result_data, _result_event
     if _pending_task is None:
@@ -312,6 +354,7 @@ def _process_pending():
             error_msg = None
             import io
             import sys
+
             buf = io.StringIO()
             old_stdout = sys.stdout
             sys.stdout = buf
@@ -338,13 +381,17 @@ def _process_pending():
             for i, obj in enumerate(bpy.context.scene.objects):
                 if i >= 20:
                     break
-                info["objects"].append({
-                    "name": obj.name,
-                    "type": obj.type,
-                    "location": [round(float(obj.location.x), 2),
-                                 round(float(obj.location.y), 2),
-                                 round(float(obj.location.z), 2)],
-                })
+                info["objects"].append(
+                    {
+                        "name": obj.name,
+                        "type": obj.type,
+                        "location": [
+                            round(float(obj.location.x), 2),
+                            round(float(obj.location.y), 2),
+                            round(float(obj.location.z), 2),
+                        ],
+                    }
+                )
             result = info
 
         elif cmd == "screenshot_viewport":
@@ -354,6 +401,7 @@ def _process_pending():
 
             if not filepath:
                 import tempfile
+
                 filepath = os.path.join(tempfile.gettempdir(), f"blender_mcp_shot_{os.getpid()}.png")
 
             os.makedirs(os.path.dirname(filepath), exist_ok=True)

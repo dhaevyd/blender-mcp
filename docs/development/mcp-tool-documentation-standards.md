@@ -184,7 +184,7 @@ Returns:
 """
 Returns:
     dict: Search results with metadata
-    
+
     Structure:
     {
         "status": str,              # "success" or "error"
@@ -197,7 +197,7 @@ Returns:
                 "title": str,       # Bookmark title (may be empty)
                 "url": str,         # Full URL including protocol
                 "dateAdded": int,   # Unix timestamp in microseconds
-                "lastModified": int,# Unix timestamp in microseconds  
+                "lastModified": int,# Unix timestamp in microseconds
                 "parent": int,      # Parent folder ID (0 = root)
                 "tags": [str]       # List of tags (may be empty)
             }
@@ -205,7 +205,7 @@ Returns:
         "truncated": bool,          # True if results limited by 'limit' parameter
         "execution_time_ms": float  # Query execution time
     }
-    
+
     On Error:
     {
         "status": "error",
@@ -865,7 +865,7 @@ Common Issues:
 ### ❌ Don't: Assume Users Know Your Tools
 ```python
 """Args:
-    profile: Profile to use
+profile: Profile to use
 """
 ```
 How do they get a profile? What format?
@@ -873,9 +873,9 @@ How do they get a profile? What format?
 ### ✅ Do: Guide Users to Prerequisites
 ```python
 """Args:
-    profile_path (str): Full path to profile directory
-        Get path: Use get_firefox_profiles() tool first
-        Format: "C:\\Users\\{user}\\AppData\\..."
+profile_path (str): Full path to profile directory
+    Get path: Use get_firefox_profiles() tool first
+    Format: "C:\\Users\\{user}\\AppData\\..."
 """
 ```
 
@@ -1017,7 +1017,7 @@ Compare documentation quality experimentally:
 
 # Measure over 100 tool calls each:
 # - First-call success rate
-# - Average attempts to success  
+# - Average attempts to success
 # - User satisfaction rating
 # - Support ticket volume
 

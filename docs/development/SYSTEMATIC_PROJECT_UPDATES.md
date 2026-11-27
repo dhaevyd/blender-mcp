@@ -170,13 +170,14 @@ grep -r "from ..tools import tool" src/nest_protect_mcp/tools/  # Should find no
 import os
 import ast
 
+
 def check_file_imports(filepath):
-    with open(filepath, 'r') as f:
+    with open(filepath, "r") as f:
         content = f.read()
-    
+
     tree = ast.parse(content)
     imports = []
-    
+
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
             for alias in node.names:
@@ -185,13 +186,14 @@ def check_file_imports(filepath):
             module = node.module or ""
             for alias in node.names:
                 imports.append(f"from {module} import {alias.name}")
-    
+
     return imports
+
 
 # Check all tool files
 tools_dir = "src/nest_protect_mcp/tools/"
 for filename in os.listdir(tools_dir):
-    if filename.endswith('.py') and filename != '__init__.py':
+    if filename.endswith(".py") and filename != "__init__.py":
         filepath = os.path.join(tools_dir, filename)
         imports = check_file_imports(filepath)
         print(f"\n{filename}:")
@@ -205,28 +207,28 @@ for filename in os.listdir(tools_dir):
 import os
 import ast
 
+
 def check_function_decorators(filepath):
-    with open(filepath, 'r') as f:
+    with open(filepath, "r") as f:
         content = f.read()
-    
+
     tree = ast.parse(content)
     functions = []
-    
+
     for node in ast.walk(tree):
         if isinstance(node, ast.FunctionDef):
-            decorators = [d.id if hasattr(d, 'id') else str(d) for d in node.decorator_list]
-            functions.append({
-                'name': node.name,
-                'decorators': decorators,
-                'is_async': isinstance(node, ast.AsyncFunctionDef)
-            })
-    
+            decorators = [d.id if hasattr(d, "id") else str(d) for d in node.decorator_list]
+            functions.append(
+                {"name": node.name, "decorators": decorators, "is_async": isinstance(node, ast.AsyncFunctionDef)}
+            )
+
     return functions
 
-# Check all tool files  
+
+# Check all tool files
 tools_dir = "src/nest_protect_mcp/tools/"
 for filename in os.listdir(tools_dir):
-    if filename.endswith('.py') and filename != '__init__.py':
+    if filename.endswith(".py") and filename != "__init__.py":
         filepath = os.path.join(tools_dir, filename)
         functions = check_function_decorators(filepath)
         print(f"\n{filename}:")
@@ -317,44 +319,48 @@ Files: ALL files in src/nest_protect_mcp/tools/
 # comprehensive_check.py
 def validate_all_tools():
     """Ensure every tool follows the correct pattern."""
-    
+
     tools_expected = [
-        ('device_status', ['list_devices', 'get_device_status', 'get_device_events']),
-        ('device_control', ['hush_alarm', 'run_safety_check', 'set_led_brightness', 'sound_alarm', 'arm_disarm_security']),
-        ('system_status', ['get_system_status', 'get_process_status', 'get_api_status']),
-        ('auth_tools', ['initiate_oauth_flow', 'handle_oauth_callback', 'refresh_access_token']),
-        ('config_tools', ['get_config', 'update_config', 'reset_config', 'export_config', 'import_config']),
-        ('help_tool', ['list_available_tools', 'get_tool_help', 'search_tools']),
-        ('about_tool', ['about_server', 'get_supported_devices'])
+        ("device_status", ["list_devices", "get_device_status", "get_device_events"]),
+        (
+            "device_control",
+            ["hush_alarm", "run_safety_check", "set_led_brightness", "sound_alarm", "arm_disarm_security"],
+        ),
+        ("system_status", ["get_system_status", "get_process_status", "get_api_status"]),
+        ("auth_tools", ["initiate_oauth_flow", "handle_oauth_callback", "refresh_access_token"]),
+        ("config_tools", ["get_config", "update_config", "reset_config", "export_config", "import_config"]),
+        ("help_tool", ["list_available_tools", "get_tool_help", "search_tools"]),
+        ("about_tool", ["about_server", "get_supported_devices"]),
     ]
-    
+
     for module_name, expected_functions in tools_expected:
         print(f"\nValidating {module_name}.py:")
-        
+
         # Check file exists
         filepath = f"src/nest_protect_mcp/tools/{module_name}.py"
         if not os.path.exists(filepath):
             print(f"  ❌ File missing: {filepath}")
             continue
-            
-        # Check functions exist  
+
+        # Check functions exist
         functions = check_function_decorators(filepath)
-        function_names = [f['name'] for f in functions]
-        
+        function_names = [f["name"] for f in functions]
+
         for expected_func in expected_functions:
             if expected_func in function_names:
                 print(f"  ✅ {expected_func} found")
             else:
                 print(f"  ❌ {expected_func} MISSING")
-        
+
         # Check for old patterns
-        with open(filepath, 'r') as f:
+        with open(filepath, "r") as f:
             content = f.read()
-            
+
         if "@tool" in content:
             print(f"  ❌ Old @tool decorators still present")
         if "from ..tools import tool" in content:
             print(f"  ❌ Old tool imports still present")
+
 
 if __name__ == "__main__":
     validate_all_tools()

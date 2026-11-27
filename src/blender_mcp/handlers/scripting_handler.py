@@ -11,6 +11,7 @@ from ..decorators import blender_operation
 
 logger = logging.getLogger(__name__)
 from ..utils.blender_executor import get_blender_executor
+from ..utils.script_utils import py_str
 
 _executor = get_blender_executor()
 
@@ -235,13 +236,15 @@ async def create_driver(target: str, data_path: str, expression: str, **kwargs: 
     kwargs.get("use_self", False)
     kwargs.get("is_simple_expression", False)
 
+    _target = py_str(target)
+    _data_path = py_str(data_path)
     script = rf"""
 import json
 
 def create_driver():
     try:
         # Parse the target path
-        parts = '{target}'.split('.')
+        parts = {_target}.split('.')
         obj_name = parts[0]
         prop_path = '.'.join(parts[1:]) if len(parts) > 1 else ''
 
@@ -289,7 +292,7 @@ def create_driver():
                 return {{"status": "ERROR", "error": f"Invalid data path: {{prop_path}} - {{str(e)}}"}}
 
         # Create the driver
-        data_path = '{data_path}'
+        data_path = {_data_path}
 
         # Check if driver already exists
         if hasattr(data, 'animation_data') and data.animation_data and data.animation_data.drivers:
@@ -336,8 +339,8 @@ def create_driver():
 
         return {{
             "status": "SUCCESS",
-            "target": '{target}',
-            "data_path": '{data_path}',
+            "target": {_target},
+            "data_path": {_data_path},
             "expression": '''{expression}'''
         }}
 

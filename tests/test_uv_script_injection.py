@@ -28,10 +28,7 @@ def test_project_from_view_keeps_object_name_as_a_literal(monkeypatch):
     asyncio.run(uv_handler.project_from_view(object_name=object_name))
 
     tree = ast.parse(executor.script)
-    assert not any(
-        isinstance(node, ast.Name) and node.id == "__import__"
-        for node in ast.walk(tree)
-    )
+    assert not any(isinstance(node, ast.Name) and node.id == "__import__" for node in ast.walk(tree))
     assert repr(object_name) in executor.script
 
 

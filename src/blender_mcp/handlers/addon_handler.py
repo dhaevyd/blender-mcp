@@ -139,11 +139,23 @@ async def install_addon_from_url(addon_url: str, enable_after: bool = True) -> d
             "status": "ERROR",
             "error": "Blender addons path not found. Set BLENDER_ADDONS_PATH.",
         }
+    # BLENDER-006: SSRF protection — validate URL before fetching
+    try:
+        from ..utils.safe_http import _check_url
+
+        _check_url(addon_url)
+    except ValueError as e:
+        return {"status": "ERROR", "error": f"URL rejected: {e}"}
+
+    _MAX_ADDON_BYTES = 100 * 1024 * 1024  # 100 MiB
     try:
         async with httpx.AsyncClient(follow_redirects=True, timeout=60) as client:
             r = await client.get(addon_url)
             r.raise_for_status()
             data = r.content
+            # BLENDER-006: size cap
+            if len(data) > _MAX_ADDON_BYTES:
+                return {"status": "ERROR", "error": "Addon download exceeds 100 MiB limit"}
     except Exception as e:
         logger.warning("Addon download failed: %s", e)
         return {"status": "ERROR", "error": str(e)}
@@ -154,13 +166,28 @@ async def install_addon_from_url(addon_url: str, enable_after: bool = True) -> d
 
             # The download is staged in a temp file that is unlinked in the finally
             # block, including when the write or the extraction fails.
+            _MAX_UNZIP_BYTES = 200 * 1024 * 1024  # 200 MiB
             zip_path: str | None = None
             try:
                 with tempfile.NamedTemporaryFile(suffix=".zip", delete=False) as f:
                     zip_path = f.name
                     f.write(data)
+                # BLENDER-011: track actual decompressed bytes
+                total_written = 0
                 with zipfile.ZipFile(zip_path, "r") as z:
-                    z.extractall(addons_dir)
+                    for member in z.infolist():
+                        with z.open(member) as src:
+                            dest = Path(addons_dir) / member.filename
+                            dest.parent.mkdir(parents=True, exist_ok=True)
+                            with open(dest, "wb") as dst:
+                                while True:
+                                    chunk = src.read(65536)
+                                    if not chunk:
+                                        break
+                                    total_written += len(chunk)
+                                    if total_written > _MAX_UNZIP_BYTES:
+                                        raise ValueError("ZIP decompression limit exceeded (200 MiB)")
+                                    dst.write(chunk)
             finally:
                 if zip_path:
                     try:

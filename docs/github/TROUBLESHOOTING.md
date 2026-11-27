@@ -308,8 +308,10 @@ error: No parameter named "page" in SearchQuery
 ```python
 query = SearchQuery(text=search_text)  # Only takes 'text'
 response = await call_post(
-    client, url, json=query.model_dump(),
-    params={"page": 1, "page_size": 100}  # ✅ In params
+    client,
+    url,
+    json=query.model_dump(),
+    params={"page": 1, "page_size": 100},  # ✅ In params
 )
 ```
 

@@ -10,6 +10,9 @@
 
 ARG BLENDER_VERSION=5.2.0
 ARG BLENDER_SERIES=5.2
+# BLENDER-017: Set BLENDER_SHA256 to the official SHA256 of the .tar.xz for the target version.
+# Update this whenever BLENDER_VERSION changes: https://download.blender.org/release/
+ARG BLENDER_SHA256=""
 
 # ---- Stage 1: build the dashboard -------------------------------------------
 FROM node:22-slim AS frontend
@@ -49,6 +52,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 RUN wget -q -O /tmp/blender.tar.xz \
         "https://download.blender.org/release/Blender${BLENDER_SERIES}/blender-${BLENDER_VERSION}-linux-x64.tar.xz" \
+    # BLENDER-017: Verify SHA256 when provided (set BLENDER_SHA256 build arg to enforce)
+    && if [ -n "${BLENDER_SHA256}" ]; then \
+         echo "${BLENDER_SHA256}  /tmp/blender.tar.xz" | sha256sum -c - || (echo "SHA256 mismatch for Blender download" >&2; exit 1); \
+       fi \
     && tar -xf /tmp/blender.tar.xz -C /opt \
     && mv "/opt/blender-${BLENDER_VERSION}-linux-x64" /opt/blender \
     && rm /tmp/blender.tar.xz

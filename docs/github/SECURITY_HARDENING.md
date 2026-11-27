@@ -44,8 +44,8 @@ import hashlib
 
 # When NOT used for security (file naming, etc.)
 hash_value = hashlib.md5(
-    data.encode(), 
-    usedforsecurity=False  # ✅ Explicitly mark as non-crypto
+    data.encode(),
+    usedforsecurity=False,  # ✅ Explicitly mark as non-crypto
 ).hexdigest()
 ```
 
@@ -229,7 +229,7 @@ host = "0.0.0.0"  # ⚠️ Warning - allows external connections
 ```python
 host: str = typer.Option(
     "0.0.0.0",  # nosec B104 - intentional for LAN access
-    help="Bind to all interfaces for network access"
+    help="Bind to all interfaces for network access",
 )
 ```
 

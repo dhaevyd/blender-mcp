@@ -16,13 +16,35 @@ from pathlib import Path
 from typing import Any, Literal
 
 from blender_mcp.app import get_app
+
+_MAX_UNZIP_BYTES = 500 * 1024 * 1024  # BLENDER-011: 500 MiB decompression cap
+
+
+def _safe_extractall(zf: zipfile.ZipFile, dest_dir: Path) -> None:
+    """Extract zip while tracking actual written bytes to prevent ZIP bombs."""
+    total = 0
+    for member in zf.infolist():
+        with zf.open(member) as src:
+            dest = dest_dir / member.filename
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            if member.is_dir():
+                dest.mkdir(parents=True, exist_ok=True)
+            else:
+                with open(dest, "wb") as dst:
+                    while chunk := src.read(65536):
+                        total += len(chunk)
+                        if total > _MAX_UNZIP_BYTES:
+                            raise ValueError("ZIP decompression limit exceeded (500 MiB)")
+                        dst.write(chunk)
+
+
 from blender_mcp.handlers.asset_repository_handler import import_blend_asset, import_scene_asset
-from blender_mcp.services.asset_fetch import download_entry_list, download_single
 from blender_mcp.services.ambientcg_api import (
     AmbientCGAPI,
     build_pbr_material_script,
     resolve_download_url,
 )
+from blender_mcp.services.asset_fetch import download_entry_list, download_single
 from blender_mcp.services.polyhaven_api import (
     PolyHavenAPI,
     resolve_hdri_url,
@@ -287,6 +309,7 @@ def _register_asset_library_tools() -> None:
             chosen_id = ranked[0][1]
             chosen_meta = ranked[0][2]
             from blender_mcp.utils.blender_executor import get_blender_executor
+
             executor = get_blender_executor()
             files_data = await api.files(chosen_id)
             url = resolve_hdri_url(files_data, resolution, file_format or "hdr")
@@ -330,9 +353,10 @@ def _register_asset_library_tools() -> None:
                 extract_dir = tdir / "extracted"
                 extract_dir.mkdir()
                 with zipfile.ZipFile(zip_path, "r") as zf:
-                    zf.extractall(extract_dir)
+                    _safe_extractall(zf, extract_dir)
                 # Map suffix → file path
                 from blender_mcp.services.ambientcg_api import TEXTURE_MAP
+
                 texture_files: dict[str, str] = {}
                 for f in extract_dir.rglob("*"):
                     if not f.is_file():
@@ -345,6 +369,7 @@ def _register_asset_library_tools() -> None:
                 if not texture_files:
                     return {"success": False, "error": "No recognisable texture maps found in download"}
                 from blender_mcp.utils.blender_executor import get_blender_executor
+
                 executor = get_blender_executor()
                 mat_name = asset.get("assetId", asset_id)
                 script = build_pbr_material_script(mat_name, texture_files)
@@ -352,7 +377,9 @@ def _register_asset_library_tools() -> None:
                 ok = "AMBIENTCG_MAT_OK:" in (result or "")
                 return {
                     "success": ok,
-                    "message": f"ambientCG material '{mat_name}' created" if ok else "Script ran but material status unclear",
+                    "message": f"ambientCG material '{mat_name}' created"
+                    if ok
+                    else "Script ran but material status unclear",
                     "material_name": mat_name,
                     "resolution": res_key,
                     "maps_loaded": sorted(texture_files.keys()),
@@ -419,7 +446,7 @@ def _register_asset_library_tools() -> None:
                 elif zipfile.is_zipfile(dl_path):
                     extract_dir.mkdir(parents=True, exist_ok=True)
                     with zipfile.ZipFile(dl_path, "r") as zf:
-                        zf.extractall(extract_dir)
+                        _safe_extractall(zf, extract_dir)
                     glbs = list(extract_dir.rglob("*.glb"))
                     gltfs = list(extract_dir.rglob("*.gltf"))
                     target = glbs[0] if glbs else (gltfs[0] if gltfs else None)
@@ -427,7 +454,7 @@ def _register_asset_library_tools() -> None:
                     try:
                         extract_dir.mkdir(parents=True, exist_ok=True)
                         with zipfile.ZipFile(dl_path, "r") as zf:
-                            zf.extractall(extract_dir)
+                            _safe_extractall(zf, extract_dir)
                         glbs = list(extract_dir.rglob("*.glb"))
                         gltfs = list(extract_dir.rglob("*.gltf"))
                         target = glbs[0] if glbs else (gltfs[0] if gltfs else None)

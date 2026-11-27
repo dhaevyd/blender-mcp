@@ -246,22 +246,24 @@ networks:
 from prometheus_client import Counter, Histogram, Gauge, start_http_server
 
 # Metrics
-tool_calls_total = Counter('mcp_tool_calls_total', 'Total tool calls', ['tool_name'])
-tool_duration = Histogram('mcp_tool_duration_seconds', 'Tool execution time', ['tool_name'])
-active_connections = Gauge('mcp_active_connections', 'Active MCP connections')
-nest_api_calls = Counter('nest_api_calls_total', 'Nest API calls', ['endpoint', 'status'])
+tool_calls_total = Counter("mcp_tool_calls_total", "Total tool calls", ["tool_name"])
+tool_duration = Histogram("mcp_tool_duration_seconds", "Tool execution time", ["tool_name"])
+active_connections = Gauge("mcp_active_connections", "Active MCP connections")
+nest_api_calls = Counter("nest_api_calls_total", "Nest API calls", ["endpoint", "status"])
+
 
 @app.tool()
 async def list_devices() -> Dict[str, Any]:
-    tool_calls_total.labels(tool_name='list_devices').inc()
-    with tool_duration.labels(tool_name='list_devices').time():
+    tool_calls_total.labels(tool_name="list_devices").inc()
+    with tool_duration.labels(tool_name="list_devices").time():
         try:
             result = await device_list_func()
-            nest_api_calls.labels(endpoint='devices', status='success').inc()
+            nest_api_calls.labels(endpoint="devices", status="success").inc()
             return result
         except Exception as e:
-            nest_api_calls.labels(endpoint='devices', status='error').inc()
+            nest_api_calls.labels(endpoint="devices", status="error").inc()
             raise
+
 
 # Start metrics server
 start_http_server(8000)
@@ -298,31 +300,32 @@ import requests
 from prometheus_client import Gauge
 
 # System metrics
-cpu_usage = Gauge('home_cpu_usage_percent', 'CPU usage')
-memory_usage = Gauge('home_memory_usage_percent', 'Memory usage')
-disk_usage = Gauge('home_disk_usage_percent', 'Disk usage')
-internet_speed = Gauge('home_internet_speed_mbps', 'Internet speed')
+cpu_usage = Gauge("home_cpu_usage_percent", "CPU usage")
+memory_usage = Gauge("home_memory_usage_percent", "Memory usage")
+disk_usage = Gauge("home_disk_usage_percent", "Disk usage")
+internet_speed = Gauge("home_internet_speed_mbps", "Internet speed")
 
 # IoT device metrics
-nest_protect_battery = Gauge('nest_protect_battery_percent', 'Battery level', ['device_id'])
-thermostat_temp = Gauge('thermostat_temperature_celsius', 'Temperature', ['location'])
-security_status = Gauge('security_system_armed', 'Security system status')
+nest_protect_battery = Gauge("nest_protect_battery_percent", "Battery level", ["device_id"])
+thermostat_temp = Gauge("thermostat_temperature_celsius", "Temperature", ["location"])
+security_status = Gauge("security_system_armed", "Security system status")
+
 
 async def collect_metrics():
     # System metrics
     cpu_usage.set(psutil.cpu_percent())
     memory_usage.set(psutil.virtual_memory().percent)
-    disk_usage.set(psutil.disk_usage('/').percent)
-    
+    disk_usage.set(psutil.disk_usage("/").percent)
+
     # Internet speed test
     speed = await test_internet_speed()
     internet_speed.set(speed)
-    
+
     # Nest device data
     devices = await get_nest_devices()
     for device in devices:
-        nest_protect_battery.labels(device_id=device['id']).set(device['battery'])
-    
+        nest_protect_battery.labels(device_id=device["id"]).set(device["battery"])
+
     # Security system
     security_status.set(1 if await is_security_armed() else 0)
 ```

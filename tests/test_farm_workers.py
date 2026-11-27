@@ -64,10 +64,12 @@ def test_load_worker_configs_resolves_tokens_from_named_environment_variables(mo
 def test_load_worker_configs_rejects_duplicate_ids(monkeypatch):
     monkeypatch.setenv(
         "BLENDER_FARM_WORKERS",
-        json.dumps([
-            {"id": "gpu-a", "url": "https://10.0.0.8/mcp", "api_key_env": "GPU_A_KEY"},
-            {"id": "gpu-a", "url": "https://10.0.0.9/mcp", "api_key_env": "GPU_B_KEY"},
-        ]),
+        json.dumps(
+            [
+                {"id": "gpu-a", "url": "https://10.0.0.8/mcp", "api_key_env": "GPU_A_KEY"},
+                {"id": "gpu-a", "url": "https://10.0.0.9/mcp", "api_key_env": "GPU_B_KEY"},
+            ]
+        ),
     )
     monkeypatch.setenv("GPU_A_KEY", "a")
     monkeypatch.setenv("GPU_B_KEY", "b")

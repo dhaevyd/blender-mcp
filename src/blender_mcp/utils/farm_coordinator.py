@@ -102,7 +102,9 @@ def _write_project_frame(workspace: Path, project_id: str, job_id: str, frame_na
             next_fd = os.open(component, flags, dir_fd=fd)
             os.close(fd)
             fd = next_fd
-        output_fd = os.open(frame_name, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | getattr(os, "O_NOFOLLOW", 0), 0o644, dir_fd=fd)
+        output_fd = os.open(
+            frame_name, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | getattr(os, "O_NOFOLLOW", 0), 0o644, dir_fd=fd
+        )
         with os.fdopen(output_fd, "wb") as output:
             output.write(data)
     finally:
@@ -110,13 +112,13 @@ def _write_project_frame(workspace: Path, project_id: str, job_id: str, frame_na
     return workspace / "projects" / project_id / "renders" / job_id / frame_name
 
 
-_HEARTBEAT_INTERVAL = 30   # seconds between pings
-_HEARTBEAT_TIMEOUT = 10    # seconds to wait for a ping response
-_WORKER_OFFLINE_AFTER = 90 # seconds of silence before marking offline
+_HEARTBEAT_INTERVAL = 30  # seconds between pings
+_HEARTBEAT_TIMEOUT = 10  # seconds to wait for a ping response
+_WORKER_OFFLINE_AFTER = 90  # seconds of silence before marking offline
 
 _STATUS_PROBE_INTERVAL = 30  # seconds between background status probes
-_STATUS_PROBE_TIMEOUT = 12   # seconds to wait for a single probe
-_STATUS_MISS_THRESHOLD = 2   # consecutive misses before marking offline
+_STATUS_PROBE_TIMEOUT = 12  # seconds to wait for a single probe
+_STATUS_MISS_THRESHOLD = 2  # consecutive misses before marking offline
 
 
 class BlenderFarmCoordinator:
@@ -210,9 +212,7 @@ class BlenderFarmCoordinator:
     def ensure_probe_running(self) -> None:
         """Start the background probe loop if it isn't already running."""
         if self._status_probe_task is None or self._status_probe_task.done():
-            self._status_probe_task = asyncio.create_task(
-                self._probe_workers_loop(), name="blender-farm-status-probe"
-            )
+            self._status_probe_task = asyncio.create_task(self._probe_workers_loop(), name="blender-farm-status-probe")
 
     async def worker_status(self) -> list[dict[str, Any]]:
         """Return cached worker status; starts the background probe on first call."""
@@ -239,7 +239,9 @@ class BlenderFarmCoordinator:
     ) -> dict[str, Any]:
         source = _workspace_path(self.workspace, project_path)
         if not source.is_file() or source.suffix.lower() not in {".blend", ".zip"}:
-            raise ValueError("project_path must point to an existing .blend or .zip bundle inside the coordinator workspace")
+            raise ValueError(
+                "project_path must point to an existing .blend or .zip bundle inside the coordinator workspace"
+            )
         if gallery_project_id is not None:
             from blender_mcp.utils.projects import safe_project
 
@@ -295,6 +297,7 @@ class BlenderFarmCoordinator:
 
         synced: dict[str, str] = {}
         failed_workers: list[dict[str, str]] = []
+
         async def sync(worker_id: str) -> None:
             try:
                 result = await self._client(worker_id).call_tool(
@@ -346,7 +349,14 @@ class BlenderFarmCoordinator:
             "video_format": video_format if video_format in {"mp4", "prores"} else "mp4",
             "fps": max(1, fps),
         }
-        self.store.create_job(job_id, str(source.relative_to(self.workspace)), frame_start, frame_end, metadata=metadata, priority=int(priority))
+        self.store.create_job(
+            job_id,
+            str(source.relative_to(self.workspace)),
+            frame_start,
+            frame_end,
+            metadata=metadata,
+            priority=int(priority),
+        )
         event = asyncio.Event()
         event.set()
         self._pause_events[job_id] = event
@@ -373,6 +383,7 @@ class BlenderFarmCoordinator:
     async def _heartbeat_loop(self, worker_ids: list[str], job_id: str) -> None:
         """Ping workers every 30s; requeue in-progress frames from workers silent for 90s."""
         import time
+
         now = time.monotonic
         for wid in worker_ids:
             self._worker_last_seen.setdefault(wid, now())
@@ -392,7 +403,12 @@ class BlenderFarmCoordinator:
                     silent_for = now() - self._worker_last_seen.get(wid, now())
                     if silent_for >= _WORKER_OFFLINE_AFTER:
                         if wid not in self._offline_workers:
-                            logger.warning("Job %s: worker %s offline (silent %.0fs) — requeueing its frames", job_id, wid, silent_for)
+                            logger.warning(
+                                "Job %s: worker %s offline (silent %.0fs) — requeueing its frames",
+                                job_id,
+                                wid,
+                                silent_for,
+                            )
                             self._offline_workers.add(wid)
                         # Requeue any in-progress frames assigned to this worker.
                         for record in self.store.get_frame_records(job_id):
@@ -406,9 +422,7 @@ class BlenderFarmCoordinator:
         worker_ids = metadata["worker_ids"]
         if not pending or not worker_ids:
             return
-        heartbeat = asyncio.create_task(
-            self._heartbeat_loop(worker_ids, job_id), name=f"blender-farm-hb-{job_id}"
-        )
+        heartbeat = asyncio.create_task(self._heartbeat_loop(worker_ids, job_id), name=f"blender-farm-hb-{job_id}")
         try:
             await self._run_job_inner(job_id, metadata, pending, worker_ids)
         finally:
@@ -432,7 +446,11 @@ class BlenderFarmCoordinator:
             (item for item in self.store.get_frame_records(job_id) if item["frame"] == pending[0]), None
         )
         if pilot_record is None or pilot_record["status"] != "completed":
-            reason = pilot_record.get("error", "GPU calibration frame failed") if pilot_record else "GPU calibration frame failed"
+            reason = (
+                pilot_record.get("error", "GPU calibration frame failed")
+                if pilot_record
+                else "GPU calibration frame failed"
+            )
             for frame in self.store.get_pending_frames(job_id):
                 self.store.finish_frame(job_id, frame, success=False, error=f"Calibration render failed: {reason}")
             return
@@ -493,6 +511,7 @@ class BlenderFarmCoordinator:
     async def _cleanup_worker_bundles(self, job_id: str, metadata: dict[str, Any]) -> None:
         """Delete the synced project bundle directory from each worker after job completion."""
         import logging
+
         log = logging.getLogger(__name__)
         project_id = metadata.get("project_id", job_id)
         bundle_dir = f"farm-projects/{project_id}"
@@ -504,13 +523,19 @@ class BlenderFarmCoordinator:
                     timeout=60,
                 )
                 if not result.get("success"):
-                    log.warning("Job %s: worker %s bundle cleanup failed — %s", job_id, worker_id, result.get("error", "unknown"))
+                    log.warning(
+                        "Job %s: worker %s bundle cleanup failed — %s",
+                        job_id,
+                        worker_id,
+                        result.get("error", "unknown"),
+                    )
             except Exception as exc:
                 log.warning("Job %s: worker %s bundle cleanup error — %s", job_id, worker_id, exc)
 
     async def _assemble_video(self, job_id: str, metadata: dict[str, Any]) -> None:
         """Stitch collected frames into a video using ffmpeg."""
         import shutil
+
         if not shutil.which("ffmpeg"):
             logger.warning("Job %s: assemble_video requested but ffmpeg is not installed — skipping", job_id)
             return
@@ -525,9 +550,12 @@ class BlenderFarmCoordinator:
             out_file = output_dir / "output.mp4"
             codec_args = ["-c:v", "libx264", "-pix_fmt", "yuv420p"]
         cmd = [
-            "ffmpeg", "-y",
-            "-framerate", str(fps),
-            "-i", input_pattern,
+            "ffmpeg",
+            "-y",
+            "-framerate",
+            str(fps),
+            "-i",
+            input_pattern,
             *codec_args,
             str(out_file),
         ]
@@ -542,7 +570,9 @@ class BlenderFarmCoordinator:
                 logger.error("Job %s: ffmpeg failed — %s", job_id, stderr.decode(errors="replace")[-500:])
             else:
                 logger.info("Job %s: video assembled → %s", job_id, out_file)
-                self.store.set_job_metadata_field(job_id, "video_output_path", str(out_file.relative_to(self.workspace)))
+                self.store.set_job_metadata_field(
+                    job_id, "video_output_path", str(out_file.relative_to(self.workspace))
+                )
         except TimeoutError:
             logger.error("Job %s: ffmpeg assembly timed out after 3600s", job_id)
         except Exception as exc:
@@ -581,7 +611,9 @@ class BlenderFarmCoordinator:
 
     async def _read_worker_identity(self, worker_id: str) -> dict[str, Any] | None:
         try:
-            result = await self._client(worker_id).call_tool("blender_farm_worker", {"operation": "identity"}, timeout=15)
+            result = await self._client(worker_id).call_tool(
+                "blender_farm_worker", {"operation": "identity"}, timeout=15
+            )
             if isinstance(result, dict) and result.get("online"):
                 caps = result.get("render_capabilities")
                 if isinstance(caps, dict):
@@ -612,9 +644,13 @@ class BlenderFarmCoordinator:
                 if not isinstance(devices, list):
                     continue
                 for device in devices:
-                    if isinstance(device, dict) and isinstance(device.get("memory_total_mib"), (int, float)) and (
-                        isinstance(device.get("memory_free_mib"), (int, float))
-                        or isinstance(device.get("memory_used_mib"), (int, float))
+                    if (
+                        isinstance(device, dict)
+                        and isinstance(device.get("memory_total_mib"), (int, float))
+                        and (
+                            isinstance(device.get("memory_free_mib"), (int, float))
+                            or isinstance(device.get("memory_used_mib"), (int, float))
+                        )
                     ):
                         reported_memory_stats = True
                     if isinstance(device, dict) and isinstance(device.get("memory_total_mib"), (int, float)):
@@ -624,15 +660,17 @@ class BlenderFarmCoordinator:
                         required_free_mib=required_free_mib,
                         minimum_total_mib=minimum_gpu_total_mib,
                     ):
-                        resources.append({
-                            "worker_id": worker_id,
-                            "index": device["index"],
-                            "name": device["name"],
-                            "backend": device["backend"],
-                            "memory_total_mib": device["memory_total_mib"],
-                            "memory_free_mib": device.get("memory_free_mib"),
-                            "memory_type": device.get("memory_type", "dedicated"),
-                        })
+                        resources.append(
+                            {
+                                "worker_id": worker_id,
+                                "index": device["index"],
+                                "name": device["name"],
+                                "backend": device["backend"],
+                                "memory_total_mib": device["memory_total_mib"],
+                                "memory_free_mib": device.get("memory_free_mib"),
+                                "memory_type": device.get("memory_type", "dedicated"),
+                            }
+                        )
             if resources:
                 # Prefer the largest available per-device capacity, then the most free VRAM.
                 # VRAM is per-device, not pooled across cards.
@@ -648,13 +686,17 @@ class BlenderFarmCoordinator:
                     self.store.finish_frame(job_id, frame, success=False, error=error)
                 return []
             if any(report is not None for report in reports) and not reported_memory_stats:
-                error = "Workers reported no per-GPU VRAM telemetry; update the worker nodes before dispatching GPU jobs."
+                error = (
+                    "Workers reported no per-GPU VRAM telemetry; update the worker nodes before dispatching GPU jobs."
+                )
                 for frame in self.store.get_pending_frames(job_id):
                     self.store.finish_frame(job_id, frame, success=False, error=error)
                 return []
             self.store.set_wait_reason(
-                job_id, "Waiting for an eligible GPU with enough free VRAM." if any(reports)
-                else "Waiting for a worker to come online."
+                job_id,
+                "Waiting for an eligible GPU with enough free VRAM."
+                if any(reports)
+                else "Waiting for a worker to come online.",
             )
             await asyncio.sleep(2)
         return []
@@ -717,20 +759,21 @@ class BlenderFarmCoordinator:
                         devices = report.get("gpu_stats", []) if report else []
                         current = next(
                             (
-                                item for item in devices
+                                item
+                                for item in devices
                                 if isinstance(item, dict)
                                 and item.get("index") == gpu_index
                                 and item.get("backend") == gpu_vendor
                             ),
-                            None
+                            None,
                         )
-                        if not self._usable_gpu(
-                            current, required_free_mib=resource.get("required_free_mib", 0)
-                        ):
+                        if not self._usable_gpu(current, required_free_mib=resource.get("required_free_mib", 0)):
                             waiting_for_gpu = True
                         else:
                             self.store.set_wait_reason(job_id, None)
-                            self.store.mark_frame_started(job_id, frame, worker_id, gpu_name=gpu_name, gpu_index=gpu_index)
+                            self.store.mark_frame_started(
+                                job_id, frame, worker_id, gpu_name=gpu_name, gpu_index=gpu_index
+                            )
                             relative = f"{metadata['output_directory']}/{metadata['prefix']}{frame:06d}.png"
                             rendered = await self._client(worker_id).call_tool(
                                 "blender_farm_worker",
@@ -751,6 +794,7 @@ class BlenderFarmCoordinator:
                             if isinstance(memory_delta, int):
                                 observed_peak_mib = max(observed_peak_mib, memory_delta)
                             import time as _time
+
                             _t0 = _time.monotonic()
                             await self._collect_frame(job_id, frame, worker_id, str(rendered["output_path"]), metadata)
                             _elapsed = _time.monotonic() - _t0
@@ -773,7 +817,10 @@ class BlenderFarmCoordinator:
                     # Worker unreachable — requeue to another worker, don't count as a render failure.
                     logger.warning(
                         "Job %s frame %s: worker %s unreachable, requeueing. Error: %s",
-                        job_id, frame, worker_id, exc,
+                        job_id,
+                        frame,
+                        worker_id,
+                        exc,
                     )
                     self.store.requeue_frame(job_id, frame)
                     break
@@ -789,7 +836,9 @@ class BlenderFarmCoordinator:
                     attempts = records.get(frame, {}).get("attempts", 0)
                     if attempts >= MAX_FRAME_RETRIES:
                         self.store.finish_frame(
-                            job_id, frame, success=False,
+                            job_id,
+                            frame,
+                            success=False,
                             error=f"exceeded max retries ({MAX_FRAME_RETRIES}): {exc}",
                         )
                     else:
@@ -812,9 +861,13 @@ class BlenderFarmCoordinator:
         if metadata["output_directory"].startswith("projects/"):
             project_id = metadata["output_directory"].split("/")[1]
             job_id = metadata["output_directory"].split("/")[-1]
-            target = _write_project_frame(self.workspace, project_id, job_id, f"{metadata['prefix']}{frame:06d}.png", data)
+            target = _write_project_frame(
+                self.workspace, project_id, job_id, f"{metadata['prefix']}{frame:06d}.png", data
+            )
         else:
-            target = _workspace_path(self.workspace, f"{metadata['output_directory']}/{metadata['prefix']}{frame:06d}.png")
+            target = _workspace_path(
+                self.workspace, f"{metadata['output_directory']}/{metadata['prefix']}{frame:06d}.png"
+            )
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_bytes(data)
         self.store.finish_frame(job_id, frame, success=True, output_path=str(target.relative_to(self.workspace)))
@@ -826,9 +879,14 @@ class BlenderFarmCoordinator:
         if not delete_result.get("success"):
             # Non-fatal: log the warning but don't fail the frame.
             import logging
+
             logging.getLogger(__name__).warning(
                 "Job %s frame %s: worker %s did not delete %s — %s",
-                job_id, frame, worker_id, worker_path, delete_result.get("error", "unknown error"),
+                job_id,
+                frame,
+                worker_id,
+                worker_path,
+                delete_result.get("error", "unknown error"),
             )
 
     def job_status(self, job_id: str) -> dict[str, Any]:

@@ -176,7 +176,9 @@ target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "S", "UP", "RUF", "T201"]
-ignore = ["S101", "B008", "E501", "S101", "B008", "E501", "E402", "B904", "S101", "B008", "E501", "E402", "B904", "S110", "S603", "S602", "S307", "S202", "S310", "S608", "S106", "S112", "RUF012", "S603", "S602", "S307", "S202", "S310", "S608", "S607", "S324", "B904", "S101", "B008", "E501", "S101", "B008", "E501", "E402", "B904", "S101", "B008", "E501", "E402", "B904", "S110", "S603", "S602", "S307", "S202", "S310", "S608", "S106", "S112", "RUF012", "S603", "S602", "S307", "S202", "S310", "S608", "S607", "S324", "B904", "S110", "S603", "S602", "S307", "S202", "S310", "S608", "S106", "S112", "RUF012", "S603", "S602", "S307", "S202", "S310", "S608"]
+# BLENDER-017: Removed broad S* ignores (S602, S603, S307, S202, S310, S608, S106, S324).
+# Use per-line `# noqa: Sxxx` for intentional suppressions.
+ignore = ["S101", "B008", "E501", "E402", "B904", "S110", "S112", "RUF012", "S607"]
 
 [tool.ruff.lint.per-file-ignores]
 "run_server.py" = ["F401"]
@@ -185,15 +187,20 @@ ignore = ["S101", "B008", "E501", "S101", "B008", "E501", "E402", "B904", "S101"
 "src/blender_mcp/decorators.py" = ["F403", "F405"]
 "src/blender_mcp/exceptions.py" = ["F403", "F405"]
 "src/blender_mcp/help.py" = ["F403", "F405"]
-"src/blender_mcp/handlers/**" = ["F403", "F405"]
+"src/blender_mcp/handlers/**" = ["F403", "F405", "S608"]
 "src/blender_mcp/tools/**" = ["F403", "F405"]
-"src/blender_mcp/utils/**" = ["F403", "F405"]
-"webapp/backend/tests/**" = ["T201"]
+"src/blender_mcp/utils/**" = ["F403", "F405", "S608"]
+"addon/**" = ["S102"]
+"docs/**" = ["S102"]
+"mcpb/**" = ["S102", "T201"]
+"webapp/backend/tests/**" = ["T201", "F401"]
+"_llm_test_scripts/**" = ["F401"]
+"scripts/**" = ["F841", "T201"]
 "webapp/backend/tests/run_tests.py" = ["T201"]
 "verify_tools.py" = ["T201"]
 "setup.py" = ["T201"]
 "examples/**" = ["T201"]
-"scripts/**" = ["T201"]
+"tests/**/*.py" = ["F401", "F811"]
 
 [tool.ruff.format]
 quote-style = "double"

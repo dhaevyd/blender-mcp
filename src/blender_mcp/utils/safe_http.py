@@ -7,7 +7,7 @@ from urllib.parse import urlparse
 import httpx
 
 _MAX_DOWNLOAD_BYTES = 500 * 1024 * 1024  # 500 MiB
-_MAX_ADDON_BYTES = 100 * 1024 * 1024     # 100 MiB
+_MAX_ADDON_BYTES = 100 * 1024 * 1024  # 100 MiB
 
 _PRIVATE_NETS = [
     ipaddress.ip_network("10.0.0.0/8"),
@@ -44,9 +44,7 @@ def _check_url(url: str, *, require_https: bool = True) -> None:
             continue
         for net in _PRIVATE_NETS:
             if ip in net:
-                raise ValueError(
-                    f"URL {url!r} resolves to private/reserved IP {ip} — SSRF blocked"
-                )
+                raise ValueError(f"URL {url!r} resolves to private/reserved IP {ip} — SSRF blocked")
 
 
 async def safe_get(
@@ -94,8 +92,6 @@ async def safe_download_stream(
                 async for chunk in resp.aiter_bytes(chunk_size=65536):
                     total += len(chunk)
                     if total > max_bytes:
-                        raise ValueError(
-                            f"Download of {url!r} exceeded {max_bytes} bytes limit"
-                        )
+                        raise ValueError(f"Download of {url!r} exceeded {max_bytes} bytes limit")
                     f.write(chunk)
     return total

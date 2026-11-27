@@ -483,6 +483,7 @@ from rich.console import Console
 app = typer.Typer()
 console = Console()
 
+
 @app.command()
 def validate(
     level: str = typer.Option("smoke", help="Test level: smoke, standard, full"),
@@ -491,7 +492,7 @@ def validate(
 ):
     """
     Validate your Advanced Memory installation.
-    
+
     This runs a comprehensive test to ensure everything is working correctly.
     Test data is created in an isolated environment (safe).
     """
@@ -501,35 +502,34 @@ def validate(
     console.print(f"Time: ~{get_level_time(level)}")
     console.print(f"Safe: Uses isolated test environment")
     console.print("=" * 60 + "\n")
-    
+
     # Set environment for user validation
     os.environ["MEGATEST_LOCATION"] = "visible"  # Documents folder
     os.environ["MEGATEST_CLEANUP"] = "archive" if keep_artifacts else "immediate"
-    
+
     # Run pytest with appropriate marker
     marker = f"megatest_{level}"
     result = subprocess.run(
-        ["pytest", "tests/megatest/", "-v", "-m", marker, "--tb=short"],
-        capture_output=True,
-        text=True
+        ["pytest", "tests/megatest/", "-v", "-m", marker, "--tb=short"], capture_output=True, text=True
     )
-    
+
     # Display results
     if result.returncode == 0:
         console.print("\n[bold green]✅ VALIDATION PASSED[/bold green]")
         console.print("\n🎉 Your Advanced Memory installation is working perfectly!")
-        
+
         if keep_artifacts:
             report_path = find_latest_report()
             console.print(f"\n📊 Report saved to: {report_path}")
-            
+
             if open_report:
                 import webbrowser
+
                 webbrowser.open(str(report_path))
     else:
         console.print("\n[bold red]❌ VALIDATION FAILED[/bold red]")
         console.print("\n⚠️  Some tests failed. Please check the report for details.")
-        
+
         report_path = find_latest_report()
         console.print(f"\n📊 Report saved to: {report_path}")
         console.print("\nPlease share this report when requesting support.")
@@ -610,16 +610,12 @@ This MCP server includes comprehensive validation testing:
 ```python
 # tests/megatest/profiles/development.json
 {
-  "location": "local",
-  "cleanup": "on-success",
-  "default_level": "smoke",
-  "open_report_on_failure": true,
-  "keep_recent": 3,
-  "artifacts": {
-    "save_screenshots": false,
-    "save_exports": false,
-    "save_logs": true
-  }
+    "location": "local",
+    "cleanup": "on-success",
+    "default_level": "smoke",
+    "open_report_on_failure": true,
+    "keep_recent": 3,
+    "artifacts": {"save_screenshots": false, "save_exports": false, "save_logs": true},
 }
 ```
 
@@ -627,17 +623,12 @@ This MCP server includes comprehensive validation testing:
 ```python
 # tests/megatest/profiles/ci.json
 {
-  "location": "hidden",
-  "cleanup": "immediate",
-  "default_level": "standard",
-  "upload_artifacts": true,
-  "fail_fast": true,
-  "artifacts": {
-    "save_screenshots": true,
-    "save_exports": true,
-    "save_logs": true,
-    "compress": true
-  }
+    "location": "hidden",
+    "cleanup": "immediate",
+    "default_level": "standard",
+    "upload_artifacts": true,
+    "fail_fast": true,
+    "artifacts": {"save_screenshots": true, "save_exports": true, "save_logs": true, "compress": true},
 }
 ```
 
@@ -645,18 +636,13 @@ This MCP server includes comprehensive validation testing:
 ```python
 # tests/megatest/profiles/user-validation.json
 {
-  "location": "visible",
-  "cleanup": "archive",
-  "default_level": "smoke",
-  "open_report": true,
-  "show_progress": true,
-  "friendly_messages": true,
-  "artifacts": {
-    "save_screenshots": true,
-    "save_exports": true,
-    "save_test_data": true,
-    "generate_html_report": true
-  }
+    "location": "visible",
+    "cleanup": "archive",
+    "default_level": "smoke",
+    "open_report": true,
+    "show_progress": true,
+    "friendly_messages": true,
+    "artifacts": {"save_screenshots": true, "save_exports": true, "save_test_data": true, "generate_html_report": true},
 }
 ```
 

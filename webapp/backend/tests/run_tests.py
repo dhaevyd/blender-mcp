@@ -61,7 +61,7 @@ def run_pytest(args, test_path="tests/", markers=None, extra_args=None):
         cmd.extend(extra_args)
 
     print(f"Running: {' '.join(cmd)}")
-    result = subprocess.run(cmd, cwd=Path(__file__).parent.parent)
+    result = subprocess.run(cmd, cwd=Path(__file__).parent.parent)  # noqa: S603
     return result.returncode
 
 

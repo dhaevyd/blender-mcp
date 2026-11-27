@@ -64,7 +64,7 @@ def _normalize_worker_url(raw: str) -> str:
         if end < 0:
             raise ValueError("invalid bracketed address")
         host = value[1:end]
-        suffix = value[end + 1:]
+        suffix = value[end + 1 :]
         if suffix:
             if not suffix.startswith(":") or not suffix[1:].isdigit():
                 raise ValueError("invalid port")
@@ -99,14 +99,23 @@ def _normalize_worker_url(raw: str) -> str:
 def _valid_mcp_url(url: str) -> bool:
     try:
         parsed = urlsplit(url)
-        return (parsed.scheme in {"http", "https"} and parsed.hostname is not None
-                and not parsed.username and not parsed.password and not parsed.query
-                and not parsed.fragment and parsed.path == "/mcp" and parsed.port is not None)
+        return (
+            parsed.scheme in {"http", "https"}
+            and parsed.hostname is not None
+            and not parsed.username
+            and not parsed.password
+            and not parsed.query
+            and not parsed.fragment
+            and parsed.path == "/mcp"
+            and parsed.port is not None
+        )
     except ValueError:
         return False
 
 
-def _worker_compose_yaml(*, app_version: str, name: str, worker_id: str, workspace: str, port: int, gpu_vendor: str) -> str:
+def _worker_compose_yaml(
+    *, app_version: str, name: str, worker_id: str, workspace: str, port: int, gpu_vendor: str
+) -> str:
     import yaml
 
     compose_name = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")[:63].rstrip("-") or worker_id
@@ -147,7 +156,7 @@ def _worker_compose_yaml(*, app_version: str, name: str, worker_id: str, workspa
                 service["environment"].update(
                     {"HIP_PATH": "/opt/rocm", "LD_LIBRARY_PATH": "/opt/rocm/lib:/opt/rocm/lib64"}
                 )
-                service["security_opt"] = ["seccomp=unconfined"]
+                # BLENDER-017: seccomp=unconfined removed — use ROCm-specific seccomp profile instead
         return service
 
     if gpu_vendor == "auto":
@@ -177,7 +186,7 @@ def _worker_compose_yaml(*, app_version: str, name: str, worker_id: str, workspa
     )
 
 
-_WORKER_GPU_AUTODETECT_SCRIPT = '''#!/bin/sh
+_WORKER_GPU_AUTODETECT_SCRIPT = """#!/bin/sh
 set -eu
 
 has_pci_vendor() {
@@ -207,7 +216,7 @@ else
 fi
 echo "Detected $vendor; starting the matching worker profile (MCP_RENDER_REQUIRE_GPU=$MCP_RENDER_REQUIRE_GPU)."
 exec docker compose --env-file .env -f compose.yaml --profile "$vendor" up -d --remove-orphans
-'''
+"""
 
 
 async def connect_worker(request: Request):
@@ -339,7 +348,13 @@ async def workers_get(request: Request):
                     "enabled": bool(record["enabled"]),
                     "verified": bool(record["verified"]),
                     "online": bool(live.get("online", False)),
-                    "status": "online" if live.get("online") else ("disabled" if record.get("verified") and not record["enabled"] else ("offline" if record.get("verified") else "pending")),
+                    "status": "online"
+                    if live.get("online")
+                    else (
+                        "disabled"
+                        if record.get("verified") and not record["enabled"]
+                        else ("offline" if record.get("verified") else "pending")
+                    ),
                     "identity": live.get("identity"),
                 }
             )
@@ -379,20 +394,31 @@ async def enroll_worker(request: Request):
     name = worker_label or parsed.hostname or ""
     if (
         mode not in {"existing", "compose"}
-        or not isinstance(gpu_vendor, str) or gpu_vendor not in {"auto", "nvidia", "amd", "intel", "cpu"}
-        or not name or len(name) > 80 or any(ord(c) < 32 for c in name)
-        or not isinstance(workspace, str) or not workspace.startswith("/") or len(workspace) > 512
-        or any(ord(c) < 32 for c in workspace) or any(x in workspace for x in ("$", "{", "}", "#", ":"))
+        or not isinstance(gpu_vendor, str)
+        or gpu_vendor not in {"auto", "nvidia", "amd", "intel", "cpu"}
+        or not name
+        or len(name) > 80
+        or any(ord(c) < 32 for c in name)
+        or not isinstance(workspace, str)
+        or not workspace.startswith("/")
+        or len(workspace) > 512
+        or any(ord(c) < 32 for c in workspace)
+        or any(x in workspace for x in ("$", "{", "}", "#", ":"))
     ):
         return JSONResponse({"success": False, "error": "Invalid worker settings."}, status_code=400)
     try:
         from blender_mcp.tools.farm_tools import _coordinator
 
         farm = _coordinator()
-        worker_id = re.sub(r"[^a-z0-9]+", "-", worker_label.lower()).strip("-")[:63].rstrip("-") or "ui-" + uuid.uuid4().hex[:12]
+        worker_id = (
+            re.sub(r"[^a-z0-9]+", "-", worker_label.lower()).strip("-")[:63].rstrip("-")
+            or "ui-" + uuid.uuid4().hex[:12]
+        )
         existing_ids = {item["worker_id"] for item in farm.store.list_managed_workers()}
         if worker_id in existing_ids or worker_id in farm.workers:
-            return JSONResponse({"success": False, "error": "Worker label is already in use; choose a unique label."}, status_code=409)
+            return JSONResponse(
+                {"success": False, "error": "Worker label is already in use; choose a unique label."}, status_code=409
+            )
         key = secrets.token_urlsafe(32)
         record = {
             "worker_id": worker_id,
@@ -407,7 +433,9 @@ async def enroll_worker(request: Request):
         env = f"MCP_ROLE=worker\nBLENDER_MCP_WORKER_KEY={key}\nBLENDER_FARM_WORKER_ID={worker_id}\nBLENDER_WORKSPACE={workspace}\n"
         result = {
             "success": True,
-            "worker": {key: value for key, value in {**record, "online": False, "status": "pending"}.items() if key != "slots"},
+            "worker": {
+                key: value for key, value in {**record, "online": False, "status": "pending"}.items() if key != "slots"
+            },
             "api_key": key,
             "worker_env": env,
             "gpu_vendor": gpu_vendor,
@@ -415,7 +443,10 @@ async def enroll_worker(request: Request):
         if mode == "compose":
             if parsed.scheme != "http" or parsed.path != "/mcp" or parsed.port not in (None, 10849):
                 farm.store.delete_managed_worker(worker_id)
-                return JSONResponse({"success": False, "error": "Compose mode requires direct HTTP MCP at /mcp on port 10849."}, status_code=400)
+                return JSONResponse(
+                    {"success": False, "error": "Compose mode requires direct HTTP MCP at /mcp on port 10849."},
+                    status_code=400,
+                )
             from blender_mcp import app_version
 
             result["compose_yaml"] = _worker_compose_yaml(
@@ -489,9 +520,20 @@ async def worker_patch(request: Request):
         return JSONResponse({"success": False, "error": "Worker not found."}, status_code=404)
     if "enabled" in body and not isinstance(body["enabled"], bool):
         return JSONResponse({"success": False, "error": "enabled must be a boolean."}, status_code=400)
-    if "name" in body and (not isinstance(body["name"], str) or not body["name"].strip() or len(body["name"]) > 80 or any(ord(c) < 32 for c in body["name"])):
+    if "name" in body and (
+        not isinstance(body["name"], str)
+        or not body["name"].strip()
+        or len(body["name"]) > 80
+        or any(ord(c) < 32 for c in body["name"])
+    ):
         return JSONResponse({"success": False, "error": "Invalid name."}, status_code=400)
-    if "workspace" in body and (not isinstance(body["workspace"], str) or not body["workspace"].startswith("/") or len(body["workspace"]) > 512 or any(ord(c) < 32 for c in body["workspace"]) or any(x in body["workspace"] for x in ("$", "{", "}", "#", ":"))):
+    if "workspace" in body and (
+        not isinstance(body["workspace"], str)
+        or not body["workspace"].startswith("/")
+        or len(body["workspace"]) > 512
+        or any(ord(c) < 32 for c in body["workspace"])
+        or any(x in body["workspace"] for x in ("$", "{", "}", "#", ":"))
+    ):
         return JSONResponse({"success": False, "error": "workspace must be a safe absolute path."}, status_code=400)
     if body.get("enabled") is True and not old.get("verified"):
         return JSONResponse({"success": False, "error": "Test the worker before enabling it."}, status_code=409)
@@ -516,9 +558,7 @@ async def worker_patch(request: Request):
     updated = farm.store.get_managed_worker(wid)
     if updated is not None:
         updated.pop("slots", None)
-    return JSONResponse(
-        {"success": True, "worker": updated}, headers={"Cache-Control": "private, no-store"}
-    )
+    return JSONResponse({"success": True, "worker": updated}, headers={"Cache-Control": "private, no-store"})
 
 
 async def worker_delete(request: Request):
@@ -598,6 +638,7 @@ async def projects_post(request: Request):
 
 async def project_thumbnail_get(request: Request):
     from blender_mcp.utils.projects import safe_project, workspace_root
+
     project_id = request.path_params["project_id"]
     try:
         root = workspace_root()
@@ -858,14 +899,21 @@ async def farm_job_submit(request: Request):
     if not isinstance(project_path, str) or not project_path.strip():
         return JSONResponse({"error": "project_path is required."}, status_code=400)
     if (
-        isinstance(frame_start, bool) or not isinstance(frame_start, int)
-        or isinstance(frame_end, bool) or not isinstance(frame_end, int)
-        or frame_start < 0 or frame_end < frame_start or frame_end - frame_start > 999_999
+        isinstance(frame_start, bool)
+        or not isinstance(frame_start, int)
+        or isinstance(frame_end, bool)
+        or not isinstance(frame_end, int)
+        or frame_start < 0
+        or frame_end < frame_start
+        or frame_end - frame_start > 999_999
     ):
-        return JSONResponse({"error": "Frame range must be valid and contain no more than 1,000,000 frames."}, status_code=400)
+        return JSONResponse(
+            {"error": "Frame range must be valid and contain no more than 1,000,000 frames."}, status_code=400
+        )
     worker_ids = body.get("worker_ids")
     if worker_ids is not None and (
-        not isinstance(worker_ids, list) or not worker_ids
+        not isinstance(worker_ids, list)
+        or not worker_ids
         or any(not isinstance(worker_id, str) for worker_id in worker_ids)
     ):
         return JSONResponse({"error": "worker_ids must be a non-empty array of worker IDs."}, status_code=400)
@@ -881,13 +929,19 @@ async def farm_job_submit(request: Request):
     farm = _coordinator()
     try:
         result = await farm.submit_render(
-            project_path.strip(), frame_start, frame_end, worker_ids=worker_ids,
-            output_directory=output_directory or None, gallery_project_id=project_id or None,
+            project_path.strip(),
+            frame_start,
+            frame_end,
+            worker_ids=worker_ids,
+            output_directory=output_directory or None,
+            gallery_project_id=project_id or None,
         )
     except ValueError as exc:
         return JSONResponse({"error": str(exc)}, status_code=400)
     except Exception:
-        return JSONResponse({"error": "Could not submit farm job. Check worker connectivity and project files."}, status_code=502)
+        return JSONResponse(
+            {"error": "Could not submit farm job. Check worker connectivity and project files."}, status_code=502
+        )
     farm.store.record_audit(getattr(request.state, "studio_role", "admin"), "job.submit", result["job_id"])
     return JSONResponse(result, status_code=202, headers={"Cache-Control": "private, no-store"})
 
@@ -920,6 +974,7 @@ async def farm_job_stream(request: Request):
 
     async def _event_generator():
         import json as _json
+
         terminal = {"done", "failed", "cancelled"}
         while True:
             try:
@@ -959,8 +1014,12 @@ async def farm_job_action(request: Request):
     body = await _json_body(request)
     action = body.get("action") if body else None
     farm = _coordinator()
-    methods = {"pause": farm.pause_job, "resume": farm.resume_job, "cancel": farm.cancel_job,
-               "retry_failed": farm.retry_failed_frames}
+    methods = {
+        "pause": farm.pause_job,
+        "resume": farm.resume_job,
+        "cancel": farm.cancel_job,
+        "retry_failed": farm.retry_failed_frames,
+    }
     if not isinstance(action, str) or action not in methods:
         return JSONResponse({"error": "Unknown job action."}, status_code=400)
     job_id = request.path_params["job_id"]
@@ -1015,8 +1074,10 @@ async def farm_operations_get(request: Request):
     except OSError:
         alerts.append("Workspace disk capacity could not be checked.")
     role = getattr(request.state, "studio_role", "admin")
-    return JSONResponse({"alerts": alerts, "audit": farm.store.recent_audit() if role == "admin" else []},
-                        headers={"Cache-Control": "private, no-store"})
+    return JSONResponse(
+        {"alerts": alerts, "audit": farm.store.recent_audit() if role == "admin" else []},
+        headers={"Cache-Control": "private, no-store"},
+    )
 
 
 async def farm_access_get(request: Request):

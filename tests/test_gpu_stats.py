@@ -13,6 +13,7 @@ from blender_mcp.utils import farm_workers
 def no_intel_gpu(monkeypatch):
     monkeypatch.setattr(farm_workers, "intel_gpu_stats", lambda: [])
 
+
 SAMPLE_GPU = {
     "name": "NVIDIA GeForce RTX 3060",
     "memory_total_mib": 12288,

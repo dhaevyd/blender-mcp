@@ -85,7 +85,9 @@ class FarmJobStore:
                 db.execute("ALTER TABLE farm_jobs ADD COLUMN wait_reason TEXT")
             if "priority" not in columns:
                 db.execute("ALTER TABLE farm_jobs ADD COLUMN priority INTEGER NOT NULL DEFAULT 0")
-            db.execute("CREATE TABLE IF NOT EXISTS farm_audit (id INTEGER PRIMARY KEY, at REAL NOT NULL DEFAULT (unixepoch('subsec')), actor TEXT NOT NULL, action TEXT NOT NULL, target TEXT NOT NULL)")
+            db.execute(
+                "CREATE TABLE IF NOT EXISTS farm_audit (id INTEGER PRIMARY KEY, at REAL NOT NULL DEFAULT (unixepoch('subsec')), actor TEXT NOT NULL, action TEXT NOT NULL, target TEXT NOT NULL)"
+            )
             worker_columns = {row["name"] for row in db.execute("PRAGMA table_info(managed_workers)")}
             if "verified" not in worker_columns:
                 db.execute("ALTER TABLE managed_workers ADD COLUMN verified INTEGER NOT NULL DEFAULT 0")
@@ -242,7 +244,14 @@ class FarmJobStore:
             db.execute(
                 "INSERT INTO farm_jobs(id, project_path, frame_start, frame_end, status, metadata_json, priority) "
                 "VALUES (?, ?, ?, ?, 'running', ?, ?)",
-                (job_id, project_path, frame_start, frame_end, json.dumps(metadata or {}, sort_keys=True), int(priority)),
+                (
+                    job_id,
+                    project_path,
+                    frame_start,
+                    frame_end,
+                    json.dumps(metadata or {}, sort_keys=True),
+                    int(priority),
+                ),
             )
             db.executemany(
                 "INSERT INTO farm_frames(job_id, frame) VALUES (?, ?)",
@@ -259,7 +268,9 @@ class FarmJobStore:
 
     def set_wait_reason(self, job_id: str, reason: str | None) -> None:
         with self._connect() as db:
-            db.execute("UPDATE farm_jobs SET wait_reason=? WHERE id=? AND wait_reason IS NOT ?", (reason, job_id, reason))
+            db.execute(
+                "UPDATE farm_jobs SET wait_reason=? WHERE id=? AND wait_reason IS NOT ?", (reason, job_id, reason)
+            )
 
     def mark_frame_started(
         self, job_id: str, frame: int, worker_id: str, *, gpu_name: str | None = None, gpu_index: int | None = None

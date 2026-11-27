@@ -307,10 +307,10 @@ app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "http://localhost:3000",      # React dev server
-        "http://localhost:3001",      # Alternative port
-        "http://127.0.0.1:3000",     # Alternative localhost
-        "http://100.64.0.*",         # Tailscale network
+        "http://localhost:3000",  # React dev server
+        "http://localhost:3001",  # Alternative port
+        "http://127.0.0.1:3000",  # Alternative localhost
+        "http://100.64.0.*",  # Tailscale network
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -636,9 +636,9 @@ services:
 ```python
 # Backend CORS setup
 CORS_ORIGINS = [
-    "http://localhost:3001",      # Frontend
-    "http://localhost:4001",      # MCPJam
-    "http://100.64.0.*",          # Tailscale network
+    "http://localhost:3001",  # Frontend
+    "http://localhost:4001",  # MCPJam
+    "http://100.64.0.*",  # Tailscale network
 ]
 ```
 

@@ -18,11 +18,18 @@ def scoped_role(credential: bytes) -> str | None:
 def scoped_access(role: str, method: str, path: str) -> bool:
     if method in {"GET", "HEAD"}:
         return path in {
-            "/api/v1/farm/status", "/api/v1/farm/gpus", "/api/v1/farm/jobs", "/api/v1/farm/operations",
-            "/api/v1/workers", "/api/v1/monitoring/gpu", "/api/v1/farm/access",
+            "/api/v1/farm/status",
+            "/api/v1/farm/gpus",
+            "/api/v1/farm/jobs",
+            "/api/v1/farm/operations",
+            "/api/v1/workers",
+            "/api/v1/monitoring/gpu",
+            "/api/v1/farm/access",
         } or bool(re.fullmatch(_JOB + r"(?:/frames/\d+/download)?", path))
-    return role == "operator" and method == "POST" and (
-        path == "/api/v1/farm/jobs" or bool(re.fullmatch(_JOB + "/actions", path))
+    return (
+        role == "operator"
+        and method == "POST"
+        and (path == "/api/v1/farm/jobs" or bool(re.fullmatch(_JOB + "/actions", path)))
     )
 
 

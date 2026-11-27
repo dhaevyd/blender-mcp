@@ -59,9 +59,14 @@ def _send_socket_cmd(host: str, port: int, cmd: dict, timeout: int = BRIDGE_TIME
             header += chunk
         body_len = struct.unpack("!I", header)[0]
 
+        # BLENDER-002: Reject oversized frames before allocating memory
+        _MAX_FRAME = 16 * 1024 * 1024
+        if body_len > _MAX_FRAME:
+            raise ValueError(f"Bridge response frame too large: {body_len} bytes (limit {_MAX_FRAME})")
+
         body = b""
         while len(body) < body_len:
-            chunk = sock.recv(body_len - len(body))
+            chunk = sock.recv(min(65536, body_len - len(body)))
             if not chunk:
                 raise ConnectionError("Bridge closed connection mid-body")
             body += chunk

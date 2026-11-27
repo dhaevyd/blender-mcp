@@ -85,13 +85,14 @@ def _extract_project_bundle(workspace: Path, project_id: str, bundle_b64: str, e
                 relative = Path(member.filename)
                 if relative.is_absolute() or ".." in relative.parts:
                     raise ValueError("project archive contains an unsafe path")
-                extracted += member.file_size
-                if extracted > MAX_EXTRACTED_PROJECT_BYTES:
-                    raise ValueError("expanded project archive exceeds 512 MiB limit")
+                # BLENDER-011: track actual written bytes, not header value
                 destination = resolve_workspace_path(target, member.filename)
                 destination.parent.mkdir(parents=True, exist_ok=True)
                 with archive.open(member) as source, destination.open("wb") as output:
                     while chunk := source.read(1024 * 1024):
+                        extracted += len(chunk)
+                        if extracted > MAX_EXTRACTED_PROJECT_BYTES:
+                            raise ValueError("expanded project archive exceeds 512 MiB limit")
                         output.write(chunk)
                 if destination.suffix.lower() == ".blend":
                     blend_files.append(destination)
@@ -180,15 +181,27 @@ def _register_farm_worker_tools() -> None:
             if operation == "validate_project":
                 path = resolve_workspace_path(workspace, project_path)
                 if not path.is_file() or path.suffix.lower() != ".blend":
-                    return {"success": False, "error": "project must be an existing .blend file inside worker workspace"}
+                    return {
+                        "success": False,
+                        "error": "project must be an existing .blend file inside worker workspace",
+                    }
                 digest = hashlib.sha256(path.read_bytes()).hexdigest()
-                return {"success": True, "project_path": str(path.relative_to(workspace)), "sha256": digest, "size_bytes": path.stat().st_size}
+                return {
+                    "success": True,
+                    "project_path": str(path.relative_to(workspace)),
+                    "sha256": digest,
+                    "size_bytes": path.stat().st_size,
+                }
 
             if operation == "list_frames":
                 directory = resolve_workspace_path(workspace, output_directory)
                 frames = completed_frames(directory, prefix, frame_start, frame_end)
                 expected = list(range(frame_start, frame_end + 1))
-                return {"success": True, "completed_frames": frames, "missing_frames": [item for item in expected if item not in frames]}
+                return {
+                    "success": True,
+                    "completed_frames": frames,
+                    "missing_frames": [item for item in expected if item not in frames],
+                }
 
             if operation == "render_frame":
                 if frame < 0:
@@ -199,7 +212,10 @@ def _register_farm_worker_tools() -> None:
                 source = resolve_workspace_path(workspace, project_path)
                 target = resolve_workspace_path(workspace, output_path)
                 if not source.is_file() or source.suffix.lower() != ".blend":
-                    return {"success": False, "error": "project must be an existing .blend file inside worker workspace"}
+                    return {
+                        "success": False,
+                        "error": "project must be an existing .blend file inside worker workspace",
+                    }
                 target.parent.mkdir(parents=True, exist_ok=True)
                 gpu_setup = build_gpu_setup_snippet(
                     device="GPU",
@@ -268,7 +284,13 @@ def _register_farm_worker_tools() -> None:
                 if size > MAX_PROJECT_BUNDLE_BYTES:
                     return {"success": False, "error": "output file exceeds 512 MiB transfer limit"}
                 data = path.read_bytes()
-                return {"success": True, "file_path": str(path.relative_to(workspace)), "size_bytes": size, "sha256": hashlib.sha256(data).hexdigest(), "content_base64": base64.b64encode(data).decode("ascii")}
+                return {
+                    "success": True,
+                    "file_path": str(path.relative_to(workspace)),
+                    "size_bytes": size,
+                    "sha256": hashlib.sha256(data).hexdigest(),
+                    "content_base64": base64.b64encode(data).decode("ascii"),
+                }
 
             if operation == "files_list":
                 root = resolve_workspace_path(workspace, file_path or ".")
@@ -278,8 +300,15 @@ def _register_farm_worker_tools() -> None:
                     found = [root]
                 else:
                     found = [p for p in root.rglob("*") if p.is_file() and not p.is_symlink()]
-                files = [{"path": p.relative_to(workspace).as_posix(), "size_bytes": p.stat().st_size} for p in sorted(found)]
-                return {"success": True, "path": root.relative_to(workspace).as_posix(), "is_dir": root.is_dir(), "files": files}
+                files = [
+                    {"path": p.relative_to(workspace).as_posix(), "size_bytes": p.stat().st_size} for p in sorted(found)
+                ]
+                return {
+                    "success": True,
+                    "path": root.relative_to(workspace).as_posix(),
+                    "is_dir": root.is_dir(),
+                    "files": files,
+                }
 
             if operation == "files_write":
                 target = resolve_workspace_path(workspace, file_path)
@@ -300,7 +329,12 @@ def _register_farm_worker_tools() -> None:
                 partial = target.with_name(target.name + ".part")
                 partial.write_bytes(data)
                 os.replace(partial, target)
-                return {"success": True, "file_path": target.relative_to(workspace).as_posix(), "size_bytes": len(data), "sha256": digest}
+                return {
+                    "success": True,
+                    "file_path": target.relative_to(workspace).as_posix(),
+                    "size_bytes": len(data),
+                    "sha256": digest,
+                }
 
             if operation == "files_delete":
                 target = resolve_workspace_path(workspace, file_path)
@@ -316,7 +350,22 @@ def _register_farm_worker_tools() -> None:
                     return {"success": False, "error": "path not found"}
                 return {"success": True, "file_path": file_path}
 
-            return {"success": False, "error": f"unknown operation: {operation}", "available_operations": ["identity", "logs", "sync_project", "validate_project", "list_frames", "render_frame", "collect_output", "files_list", "files_write", "files_delete"]}
+            return {
+                "success": False,
+                "error": f"unknown operation: {operation}",
+                "available_operations": [
+                    "identity",
+                    "logs",
+                    "sync_project",
+                    "validate_project",
+                    "list_frames",
+                    "render_frame",
+                    "collect_output",
+                    "files_list",
+                    "files_write",
+                    "files_delete",
+                ],
+            }
         except Exception as exc:
             return {"success": False, "error": str(exc)}
 
