@@ -1,25 +1,30 @@
 /* Shared Studio tokens. Near-black dark mode is the default; light remains one toggle away. */
 :root {
   color-scheme: dark;
-  --studio-bg: #08090c;
-  --studio-canvas: #08090c;
-  --studio-surface: #101216;
-  --studio-rail: #050609;
-  --studio-raised: #171a20;
-  --studio-surface-raised: #171a20;
-  --studio-surface-muted: #11151c;
-  --studio-border: #252a34;
-  --studio-text: #f4f4f4;
-  --studio-muted: #a1a1a3;
-  --studio-text-muted: #a1a1a3;
-  --studio-accent: #2f66c2;
-  --studio-accent-muted: #10234a;
+  --studio-bg: #05060a;
+  --studio-canvas: #05060a;
+  --studio-surface: #0c0e14;
+  --studio-rail: #080a0f;
+  --studio-raised: #111420;
+  --studio-surface-raised: #111420;
+  --studio-surface-muted: #0f111a;
+  --studio-border: #1a1d27;
+  --studio-text: #ecedf2;
+  --studio-muted: #72757f;
+  --studio-text-muted: #72757f;
+  --studio-accent: #3d70e8;
+  --studio-accent-muted: #0d1a3a;
   --studio-accent-contrast: #ffffff;
-  --studio-focus: #78b2f0;
-  --studio-status-good: #64c58e;
-  --studio-status-warning: #e6b85c;
-  --studio-danger: #ee8989;
-  --studio-shadow: 0 1px 2px rgb(0 0 0 / 24%), 0 6px 20px rgb(0 0 0 / 12%);
+  --studio-focus: #7ba8f5;
+  --studio-status-good: hsl(145 62% 50%);
+  --studio-status-warning: hsl(38 90% 58%);
+  --studio-danger: hsl(2 78% 65%);
+  --studio-shadow: 0 1px 3px rgb(0 0 0 / 36%), 0 8px 24px rgb(0 0 0 / 18%);
+  /* Semantic color aliases used across pages */
+  --nerve-green: hsl(145 62% 50%);
+  --nerve-teal: hsl(174 72% 50%);
+  --nerve-yellow: hsl(38 90% 58%);
+  --nerve-coral: hsl(2 78% 65%);
 }
 
 :root[data-theme="light"] {

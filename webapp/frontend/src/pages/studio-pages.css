@@ -101,13 +101,19 @@
   white-space: nowrap;
   cursor: pointer;
   transition:
-    background-color 120ms ease,
-    border-color 120ms ease,
-    color 120ms ease;
+    background-color 150ms cubic-bezier(.4,0,.2,1),
+    border-color 150ms cubic-bezier(.4,0,.2,1),
+    color 150ms cubic-bezier(.4,0,.2,1),
+    transform 150ms cubic-bezier(.4,0,.2,1);
 }
 
 .page-btn:hover:not(:disabled) {
   background: color-mix(in srgb, var(--studio-surface-raised) 82%, var(--studio-text) 8%);
+  transform: translateY(-1px);
+}
+
+.page-btn:active:not(:disabled) {
+  transform: translateY(0);
 }
 
 .page-btn:focus-visible {
@@ -266,7 +272,7 @@
   border-radius: 999px;
   background: var(--studio-surface-raised);
   border: 1px solid var(--studio-border);
-  transition: background-color 140ms ease;
+  transition: background-color 150ms cubic-bezier(.4,0,.2,1);
   flex: none;
 }
 
@@ -279,8 +285,8 @@
   border-radius: 999px;
   background: var(--studio-muted);
   transition:
-    transform 140ms ease,
-    background-color 140ms ease;
+    transform 150ms cubic-bezier(.4,0,.2,1),
+    background-color 150ms cubic-bezier(.4,0,.2,1);
 }
 
 .page-switch input:checked + .page-switch-track {
@@ -689,6 +695,8 @@
   .page-switch-track,
   .page-switch-track::after {
     transition: none;
+    transform: none !important;
+    animation: none !important;
   }
 }
 

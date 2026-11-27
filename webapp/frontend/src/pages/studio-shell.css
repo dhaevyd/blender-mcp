@@ -51,8 +51,8 @@
    -------------------------------------------------------------------------- */
 
 .studio-shell .studio-sidebar {
-  width: 252px;
-  flex: 0 0 252px;
+  width: 240px;
+  flex: 0 0 240px;
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -61,7 +61,7 @@
   border: 0;
   border-right: 1px solid var(--studio-border);
   border-radius: 0;
-  background: var(--studio-surface);
+  background: var(--studio-rail);
   position: sticky;
   inset: auto;
   top: 0;
@@ -106,9 +106,9 @@
   flex: none;
   display: grid;
   place-items: center;
-  border: 1px solid var(--studio-border);
+  border: 1px solid color-mix(in srgb, var(--studio-accent) 30%, transparent);
   border-radius: 10px;
-  background: color-mix(in srgb, var(--studio-accent) 16%, var(--studio-surface-raised));
+  background: color-mix(in srgb, var(--studio-accent) 14%, var(--studio-raised));
   color: var(--studio-accent);
 }
 
@@ -184,9 +184,9 @@
   white-space: nowrap;
   cursor: pointer;
   transition:
-    background-color 120ms ease,
-    color 120ms ease,
-    border-color 120ms ease;
+    background-color 150ms cubic-bezier(.4,0,.2,1),
+    color 150ms cubic-bezier(.4,0,.2,1),
+    border-color 150ms cubic-bezier(.4,0,.2,1);
 }
 
 .studio-rail-item svg {
@@ -206,8 +206,8 @@
 
 .studio-shell .studio-rail-item.active,
 .studio-shell .studio-rail-item[aria-current="page"] {
-  background: color-mix(in srgb, var(--studio-accent) 16%, transparent);
-  border-color: color-mix(in srgb, var(--studio-accent) 22%, transparent);
+  background: color-mix(in srgb, var(--studio-accent) 14%, transparent);
+  border-color: color-mix(in srgb, var(--studio-accent) 28%, transparent);
   color: var(--studio-text);
 }
 
@@ -233,15 +233,13 @@
   font: 650 12px / 1 var(--font-body);
   white-space: nowrap;
   cursor: pointer;
-  transition: filter 120ms ease;
+  transition:
+    filter 150ms cubic-bezier(.4,0,.2,1),
+    transform 150ms cubic-bezier(.4,0,.2,1);
 }
 
 .studio-rail-add svg {
   flex: none;
-}
-
-.studio-shell .studio-rail-add:hover {
-  filter: brightness(1.08);
 }
 
 /* MCP badge pinned to the bottom of the rail. */
@@ -261,8 +259,8 @@
   text-align: left;
   cursor: pointer;
   transition:
-    background-color 120ms ease,
-    border-color 120ms ease;
+    background-color 150ms cubic-bezier(.4,0,.2,1),
+    border-color 150ms cubic-bezier(.4,0,.2,1);
 }
 
 .studio-shell .studio-rail-conn strong {
@@ -370,9 +368,9 @@
   color: var(--studio-muted);
   cursor: pointer;
   transition:
-    background-color 120ms ease,
-    color 120ms ease,
-    border-color 120ms ease;
+    background-color 150ms cubic-bezier(.4,0,.2,1),
+    color 150ms cubic-bezier(.4,0,.2,1),
+    border-color 150ms cubic-bezier(.4,0,.2,1);
 }
 
 .studio-shell .studio-head-actions .icon-button:hover,
@@ -715,4 +713,33 @@
   .studio-shell .studio-sidebar {
     transition: none;
   }
+}
+
+/* --------------------------------------------------------------------------
+   Page transitions
+   -------------------------------------------------------------------------- */
+
+@keyframes studioPageIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.studio-shell .studio-main > * {
+  animation: studioPageIn 180ms cubic-bezier(.4,0,.2,1) both;
+}
+
+/* Status dot pulse for active workers */
+@keyframes sdpulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.status-dot-active {
+  animation: sdpulse 2s ease-in-out infinite;
 }
