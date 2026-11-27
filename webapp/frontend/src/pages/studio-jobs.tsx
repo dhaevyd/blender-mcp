@@ -268,6 +268,15 @@ export default function StudioJobs() {
           <p>Submit, monitor and steer renders across the farm.</p>
         </div>
         <div className="page-actions">
+          {canSubmit && (
+            <button
+              type="button"
+              className="page-btn is-primary"
+              onClick={() => setSelected("__submit__")}
+            >
+              + Submit job
+            </button>
+          )}
           <button type="button" className="page-btn" disabled={busy} onClick={() => setRefresh((n) => n + 1)}>
             <svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true" focusable="false">
               <path
@@ -339,317 +348,237 @@ export default function StudioJobs() {
         </p>
       )}
 
-      <div className="page-split">
-        <div className="page-stack studio-jobs-main">
-          <section className="nr-card studio-jobs-list">
+      {/* Submit modal */}
+      {selected === "__submit__" && canSubmit && (
+        <div className="jobs-modal-backdrop" onClick={() => setSelected("")}>
+          <form
+            className="nr-card jobs-submit-modal"
+            onSubmit={(event) => void submit(event)}
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="nr-card-head">
               <div>
-                <h2>Recent jobs</h2>
-                <p>Select a job to inspect its frames and outputs.</p>
+                <h2>Submit a render</h2>
+                <p>Choose a .blend or .zip file inside the coordinator workspace and a frame range.</p>
               </div>
-              <span className="nr-card-count">{jobs.length} total</span>
+              <button type="button" className="jobs-modal-close" onClick={() => setSelected("")} aria-label="Close">×</button>
             </div>
-            {!loaded ? (
-              <p className="page-muted studio-jobs-placeholder">Loading jobs…</p>
-            ) : !jobs.length && !error ? (
-              <div className="nr-empty">
-                <strong>No jobs submitted</strong>
-                <p>Once a render is queued it shows up here with live frame progress.</p>
-              </div>
-            ) : null}
-            {jobs.length > 0 && (
-              <div className="page-table studio-jobs-table">
-                <div className="page-table-head studio-job-row" aria-hidden="true">
-                  <span>Job</span>
-                  <span>Status</span>
-                  <span>Frames</span>
-                  <span>Progress</span>
-                  <span>ID</span>
-                </div>
-                {jobs.map((item) => {
-                  const percent = progressOf(item);
-                  return (
-                    <button
-                      key={item.id}
-                      type="button"
-                      className={`page-table-row is-interactive studio-job-row${selected === item.id ? " is-selected" : ""}`}
-                      aria-pressed={selected === item.id}
-                      onClick={() => {
-                        setSelected(item.id);
-                        setPage(0);
-                        setMessage("");
-                      }}
-                    >
-                      <span className="page-table-cell-strong studio-job-path">{item.project_path}</span>
-                      <span className={`page-chip ${tone(item.status)}`}>
-                        <i />
-                        {item.status}
-                      </span>
-                      <span className="page-table-cell-muted studio-job-frames">
-                        {item.completed}/{item.total_frames}
-                      </span>
-                      <span className="studio-job-meter">
-                        <span className={`page-meter is-thin${item.failed ? " is-hot" : ""}`}>
-                          <span style={{ width: `${percent}%` }} />
-                        </span>
-                      </span>
-                      <span className="page-table-cell-muted studio-job-id">{item.id.slice(0, 8)}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-            {jobs.length > 0 && (
-              <div className="nr-card-foot">
-                <span>{detail ? `Inspecting ${detail.id.slice(0, 8)}` : "No job selected"}</span>
-                <span>Polling every 5s</span>
-              </div>
-            )}
-          </section>
-
-          {detail && (
-            <section className="nr-card studio-jobs-detail">
-              <div className="nr-card-head">
-                <div>
-                  <h2 className="studio-jobs-detail-title">{detail.project_path}</h2>
-                  <p>
-                    {detail.completed}/{detail.total_frames} frames complete · {detail.failed} failed
-                  </p>
-                </div>
-                <div className="page-chips">
-                  <span className={`page-chip ${tone(detail.status)}`}>
-                    <i />
-                    {detail.status}
-                  </span>
-                </div>
-              </div>
-              <div className="studio-jobs-detail-progress">
-                <div
-                  className="page-meter"
-                  role="progressbar"
-                  aria-label="Frames completed"
-                  aria-valuenow={detail.completed}
-                  aria-valuemin={0}
-                  aria-valuemax={detail.total_frames || 1}
-                >
-                  <span style={{ width: `${progressOf(detail)}%` }} />
-                </div>
-                <span className="page-muted">{progressOf(detail)}%</span>
-              </div>
-              {detail.status === "running" && detail.wait_reason && (
-                <p className="page-note is-warn">{detail.wait_reason}</p>
-              )}
-              {role !== "viewer" && role && (
-                <div className="studio-jobs-actions">
-                  {detail.status === "running" && (
-                    <button type="button" className="page-btn is-sm" disabled={busy} onClick={() => void act("pause")}>
-                      Pause
-                    </button>
-                  )}
-                  {detail.status === "paused" && (
-                    <button type="button" className="page-btn is-sm" disabled={busy} onClick={() => void act("resume")}>
-                      Resume
-                    </button>
-                  )}
-                  {["running", "paused"].includes(detail.status) && (
-                    <button
-                      type="button"
-                      className="page-btn is-sm is-danger"
-                      disabled={busy}
-                      onClick={() => void act("cancel")}
-                    >
-                      Cancel job
-                    </button>
-                  )}
-                  {detail.status === "failed" && detail.failed > 0 && (
-                    <button
-                      type="button"
-                      className="page-btn is-sm"
-                      disabled={busy}
-                      onClick={() => void act("retry_failed")}
-                    >
-                      Retry failed frames
-                    </button>
-                  )}
-                </div>
-              )}
-              {message && (
-                <p className="page-note" role="status">
-                  {message}
-                </p>
-              )}
-              <div className="page-divider" />
-              <div className="page-kicker studio-jobs-table-caption">Frames and outputs</div>
-              <div className="page-table studio-frame-table">
-                <div className="page-table-head studio-frame-row" aria-hidden="true">
-                  <span>Frame</span>
-                  <span>Status</span>
-                  <span>Worker / GPU</span>
-                  <span>Output</span>
-                </div>
-                {frames.slice(page * 50, (page + 1) * 50).map((frame) => (
-                  <div key={frame.frame} className="page-table-row studio-frame-row">
-                    <span className="page-table-cell-strong">{frame.frame}</span>
-                    <span className={`page-chip ${tone(frame.status)}`}>
-                      <i />
-                      {frame.status}
-                    </span>
-                    <span className="studio-frame-worker">
-                      {frame.worker_id ?? "—"}
-                      {frame.gpu_name
-                        ? ` / ${frame.gpu_name}${frame.gpu_index == null ? "" : ` #${frame.gpu_index}`}`
-                        : ""}
-                    </span>
-                    <span className="studio-frame-out">
-                      {frame.status === "completed" && frame.output_path ? (
-                        <button
-                          type="button"
-                          className="page-btn is-sm"
-                          aria-label={`Download frame ${frame.frame}`}
-                          onClick={() => void download(frame)}
-                        >
-                          Download
-                        </button>
-                      ) : (
-                        (frame.error ?? "—")
-                      )}
-                    </span>
-                  </div>
-                ))}
-              </div>
-              {frames.length > 50 && (
-                <div className="studio-jobs-actions studio-jobs-pager">
-                  <button type="button" className="page-btn is-sm" disabled={page === 0} onClick={() => setPage(page - 1)}>
-                    Previous
-                  </button>
-                  <span className="page-muted">
-                    Page {page + 1} of {Math.ceil(frames.length / 50)}
-                  </span>
-                  <button
-                    type="button"
-                    className="page-btn is-sm"
-                    disabled={(page + 1) * 50 >= frames.length}
-                    onClick={() => setPage(page + 1)}
-                  >
-                    Next
-                  </button>
-                </div>
-              )}
-            </section>
-          )}
-        </div>
-
-        <div className="page-stack studio-jobs-side">
-          {canSubmit && (
-            <form className="nr-card studio-job-submit" onSubmit={(event) => void submit(event)}>
-              <div className="nr-card-head">
-                <div>
-                  <h2>Submit a render</h2>
-                  <p>Choose a .blend or .zip file inside the coordinator workspace and a frame range.</p>
-                </div>
-              </div>
-              <div className="studio-job-fields">
+            <div className="studio-job-fields">
+              <label className="page-field">
+                <span>Project path</span>
+                <input
+                  className="page-input studio-job-path-input"
+                  required
+                  value={projectPath}
+                  onChange={(event) => setProjectPath(event.target.value)}
+                  placeholder="projects/shot.blend"
+                  autoComplete="off"
+                  spellCheck={false}
+                />
+              </label>
+              <div className="studio-job-frame-range">
                 <label className="page-field">
-                  <span>Project path</span>
+                  <span>First frame</span>
                   <input
-                    className="page-input studio-job-path-input"
-                    required
-                    value={projectPath}
-                    onChange={(event) => setProjectPath(event.target.value)}
-                    placeholder="projects/shot.blend"
-                    autoComplete="off"
-                    spellCheck={false}
+                    className="page-input"
+                    type="number"
+                    min={0}
+                    max={1_000_000}
+                    value={frameStart}
+                    onChange={(e) => setFrameStart(Number(e.target.value))}
                   />
                 </label>
-                <div className="studio-job-frame-range">
-                  <label className="page-field">
-                    <span>First frame</span>
-                    <input
-                      className="page-input"
-                      type="number"
-                      min={0}
-                      max={1_000_000}
-                      value={frameStart}
-                      onChange={(e) => setFrameStart(Number(e.target.value))}
-                    />
-                  </label>
-                  <label className="page-field">
-                    <span>Last frame</span>
-                    <input
-                      className="page-input"
-                      type="number"
-                      min={0}
-                      max={1_000_000}
-                      value={frameEnd}
-                      onChange={(e) => setFrameEnd(Number(e.target.value))}
-                    />
-                  </label>
-                </div>
+                <label className="page-field">
+                  <span>Last frame</span>
+                  <input
+                    className="page-input"
+                    type="number"
+                    min={0}
+                    max={1_000_000}
+                    value={frameEnd}
+                    onChange={(e) => setFrameEnd(Number(e.target.value))}
+                  />
+                </label>
               </div>
-              <div className="page-form-actions">
-                <button
-                  type="submit"
-                  className="page-btn is-primary"
-                  disabled={busy || !loaded || frameEnd < frameStart}
-                >
-                  {busy ? "Submitting…" : "Submit to farm"}
-                </button>
-                <span className="page-muted">
-                  {frameEnd < frameStart ? "Last frame must be ≥ first frame." : "Queued jobs start as soon as a GPU is free."}
-                </span>
-              </div>
-            </form>
-          )}
-
-          <section className="nr-card studio-jobs-alerts">
-            <div className="nr-card-head">
-              <div>
-                <h2>Farm alerts</h2>
-                <p>Worker and queue anomalies from the coordinator.</p>
-              </div>
-              {operations?.alerts.length ? (
-                <span className="nr-card-count">{operations.alerts.length} open</span>
-              ) : null}
             </div>
-            {!operations ? (
-              <p className="page-note">Alert status unavailable.</p>
-            ) : operations.alerts.length ? (
-              <div className="page-list">
-                {operations.alerts.map((alert) => (
-                  <div className="page-list-row studio-jobs-alert" key={alert}>
-                    <span className="studio-jobs-alert-icon">
-                      <AlertIcon />
-                    </span>
-                    <span className="studio-jobs-alert-text">{alert}</span>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="page-note">No active alerts.</p>
-            )}
-          </section>
-
-          {role === "admin" && (
-            <details className="nr-card studio-jobs-audit">
-              <summary className="studio-jobs-audit-summary">
-                <span className="page-kicker">Audit log</span>
-                <span className="nr-card-count">{operations?.audit.length ?? 0}</span>
-              </summary>
-              {operations?.audit.length ? (
-                <div className="page-list studio-jobs-audit-list">
-                  {operations.audit.map((event) => (
-                    <div className="page-list-row is-flat studio-jobs-audit-row" key={event.id}>
-                      {new Date(event.at * 1000).toLocaleString()} · {event.actor} · {event.action} · {event.target}
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="page-note">{operations ? "No events yet." : "Audit log unavailable."}</p>
-              )}
-            </details>
-          )}
+            <div className="page-form-actions">
+              <button
+                type="submit"
+                className="page-btn is-primary"
+                disabled={busy || !loaded || frameEnd < frameStart}
+              >
+                {busy ? "Submitting…" : "Submit to farm"}
+              </button>
+              <span className="page-muted">
+                {frameEnd < frameStart ? "Last frame must be ≥ first frame." : "Queued jobs start as soon as a GPU is free."}
+              </span>
+            </div>
+          </form>
         </div>
-      </div>
+      )}
+
+      {/* All jobs table */}
+      <section className="nr-card">
+        <div className="nr-card-head">
+          <div>
+            <h2>All jobs</h2>
+            <p>Click a row to inspect frames and control execution.</p>
+          </div>
+          <span className="nr-card-count">{jobs.length} total</span>
+        </div>
+        {!loaded ? (
+          <p className="page-muted studio-jobs-placeholder">Loading jobs…</p>
+        ) : !jobs.length && !error ? (
+          <div className="nr-empty">
+            <strong>No jobs submitted</strong>
+            <p>Once a render is queued it shows up here with live frame progress.</p>
+          </div>
+        ) : null}
+        {jobs.length > 0 && (
+          <div className="page-table jobs-all-table">
+            <div className="page-table-head jobs-all-row" aria-hidden="true">
+              <span>Project</span>
+              <span>Frames</span>
+              <span>Workers</span>
+              <span>Progress</span>
+              <span>ETA</span>
+              <span>Actions</span>
+            </div>
+            {jobs.map((item) => {
+              const percent = progressOf(item);
+              const isSelected = selected === item.id;
+              return (
+                <div key={item.id} className={`page-table-row jobs-all-row${isSelected ? " is-selected" : ""}`}>
+                  <button
+                    type="button"
+                    className="jobs-row-project"
+                    onClick={() => { setSelected(isSelected ? "" : item.id); setPage(0); setMessage(""); }}
+                  >
+                    <span className="page-table-cell-strong">{item.project_path}</span>
+                    <span className={`page-chip ${tone(item.status)}`}><i />{item.status}</span>
+                  </button>
+                  <span className="page-table-cell-muted">
+                    {item.completed}/{item.total_frames}
+                    {item.failed > 0 && <span className="jobs-fail-count"> · {item.failed} fail</span>}
+                  </span>
+                  <span className="page-table-cell-muted">—</span>
+                  <span className="jobs-meter-cell">
+                    <span className={`page-meter is-thin${item.failed ? " is-hot" : ""}`}>
+                      <span style={{ width: `${percent}%` }} />
+                    </span>
+                    <span className="jobs-meter-pct">{percent}%</span>
+                  </span>
+                  <span className="page-table-cell-muted">—</span>
+                  <span className="jobs-actions-cell">
+                    {role !== "viewer" && role && item.status === "running" && (
+                      <button type="button" className="page-btn is-sm" disabled={busy && selected === item.id}
+                        onClick={() => { setSelected(item.id); void act("pause"); }}>Pause</button>
+                    )}
+                    {role !== "viewer" && role && item.status === "paused" && (
+                      <button type="button" className="page-btn is-sm" disabled={busy && selected === item.id}
+                        onClick={() => { setSelected(item.id); void act("resume"); }}>Resume</button>
+                    )}
+                    {role !== "viewer" && role && item.status === "failed" && item.failed > 0 && (
+                      <button type="button" className="page-btn is-sm" disabled={busy && selected === item.id}
+                        onClick={() => { setSelected(item.id); void act("retry_failed"); }}>Retry</button>
+                    )}
+                    {role !== "viewer" && role && ["running", "paused"].includes(item.status) && (
+                      <button type="button" className="page-btn is-sm is-danger" disabled={busy && selected === item.id}
+                        onClick={() => { setSelected(item.id); void act("cancel"); }}>Cancel</button>
+                    )}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Expanded detail for selected job */}
+        {detail && (
+          <div className="jobs-detail-drawer">
+            <div className="jobs-detail-head">
+              <div>
+                <span className="page-kicker">Job detail</span>
+                <strong className="jobs-detail-path">{detail.project_path}</strong>
+                <span className="page-muted">{detail.completed}/{detail.total_frames} frames · {detail.failed} failed</span>
+              </div>
+              <button type="button" className="jobs-modal-close" onClick={() => setSelected("")} aria-label="Close detail">×</button>
+            </div>
+            <div className="jobs-detail-progress">
+              <div
+                className="page-meter"
+                role="progressbar"
+                aria-label="Frames completed"
+                aria-valuenow={detail.completed}
+                aria-valuemin={0}
+                aria-valuemax={detail.total_frames || 1}
+              >
+                <span style={{ width: `${progressOf(detail)}%` }} />
+              </div>
+              <span className="page-muted">{progressOf(detail)}%</span>
+            </div>
+            {detail.status === "running" && detail.wait_reason && (
+              <p className="page-note is-warn">{detail.wait_reason}</p>
+            )}
+            {message && <p className="page-note" role="status">{message}</p>}
+            <div className="page-kicker" style={{ marginTop: "16px" }}>Frames and outputs</div>
+            <div className="page-table studio-frame-table">
+              <div className="page-table-head studio-frame-row" aria-hidden="true">
+                <span>Frame</span>
+                <span>Status</span>
+                <span>Worker / GPU</span>
+                <span>Output</span>
+              </div>
+              {frames.slice(page * 50, (page + 1) * 50).map((frame) => (
+                <div key={frame.frame} className="page-table-row studio-frame-row">
+                  <span className="page-table-cell-strong">{frame.frame}</span>
+                  <span className={`page-chip ${tone(frame.status)}`}><i />{frame.status}</span>
+                  <span className="studio-frame-worker">
+                    {frame.worker_id ?? "—"}
+                    {frame.gpu_name ? ` / ${frame.gpu_name}${frame.gpu_index == null ? "" : ` #${frame.gpu_index}`}` : ""}
+                  </span>
+                  <span className="studio-frame-out">
+                    {frame.status === "completed" && frame.output_path ? (
+                      <button type="button" className="page-btn is-sm" aria-label={`Download frame ${frame.frame}`}
+                        onClick={() => void download(frame)}>Download</button>
+                    ) : (frame.error ?? "—")}
+                  </span>
+                </div>
+              ))}
+            </div>
+            {frames.length > 50 && (
+              <div className="studio-jobs-actions studio-jobs-pager">
+                <button type="button" className="page-btn is-sm" disabled={page === 0} onClick={() => setPage(page - 1)}>Previous</button>
+                <span className="page-muted">Page {page + 1} of {Math.ceil(frames.length / 50)}</span>
+                <button type="button" className="page-btn is-sm" disabled={(page + 1) * 50 >= frames.length} onClick={() => setPage(page + 1)}>Next</button>
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="nr-card-foot">
+          <span>{detail ? `Inspecting ${detail.id.slice(0, 8)}` : "Click a row to inspect"}</span>
+          <span>Polling every 5s</span>
+        </div>
+      </section>
+
+      {/* Alerts row */}
+      {operations?.alerts && operations.alerts.length > 0 && (
+        <section className="nr-card">
+          <div className="nr-card-head">
+            <div><h2>Farm alerts</h2><p>Worker and queue anomalies from the coordinator.</p></div>
+            <span className="nr-card-count">{operations.alerts.length} open</span>
+          </div>
+          <div className="page-list">
+            {operations.alerts.map((alert) => (
+              <div className="page-list-row studio-jobs-alert" key={alert}>
+                <span className="studio-jobs-alert-icon"><AlertIcon /></span>
+                <span className="studio-jobs-alert-text">{alert}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
     </section>
   );
 }

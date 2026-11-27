@@ -239,6 +239,15 @@ export default function SettingsScreen({
         : dashboardSession === "unavailable"
           ? "Dashboard login disabled"
           : "Checking session";
+  const [activeSection, setActiveSection] = useState("general");
+  const settingsNav = [
+    { id: "general", label: "General" },
+    { id: "notifications", label: "Notifications" },
+    { id: "connection", label: "Connection" },
+    { id: "runtime", label: "Runtime" },
+    { id: "session", label: "Session" },
+  ];
+
   return (
     <section className="page settings-page" aria-label="Dashboard settings">
       <header className="page-head">
@@ -250,6 +259,20 @@ export default function SettingsScreen({
           <p>Connection, refresh cadence, local rendering and runtime details.</p>
         </div>
       </header>
+      <div className="settings-layout">
+        <nav className="settings-nav" aria-label="Settings sections">
+          {settingsNav.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              className={`settings-nav-item${activeSection === item.id ? " is-active" : ""}`}
+              onClick={() => setActiveSection(item.id)}
+            >
+              {item.label}
+            </button>
+          ))}
+        </nav>
+        <div className="settings-panel">
       <div className="page-grid-2 settings-grid">
         <section className="nr-card settings-refresh" aria-labelledby="settings-refresh-title">
           <div className="nr-card-head">
@@ -569,6 +592,8 @@ export default function SettingsScreen({
             </button>
           </div>
         </section>
+        </div>
+        </div>
       </div>
     </section>
   );

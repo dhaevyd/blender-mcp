@@ -942,21 +942,61 @@ body {
  * JOBS PAGE
  * ══════════════════════════════════════════════════════════════════════════ */
 .studio-jobs { display: flex; flex-direction: column; }
-.studio-jobs-main { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; align-items: start; }
-@media (max-width: 900px) { .studio-jobs-main { grid-template-columns: 1fr; } }
-.studio-jobs-list { display: flex; flex-direction: column; }
-.studio-jobs-side { display: flex; flex-direction: column; gap: 14px; }
-.studio-jobs-table.page-table .page-table-head,
-.studio-jobs-table.page-table .page-table-row {
-  grid-template-columns: minmax(0,2fr) 90px minmax(0,.9fr) 130px 70px;
+
+/* All jobs table — prototype columns: Project / Frames / Workers / Progress / ETA / Actions */
+.jobs-all-table .page-table-head,
+.jobs-all-table .page-table-row {
+  grid-template-columns: minmax(0,2fr) 80px minmax(0,1fr) 140px 90px 130px;
 }
+.jobs-all-row { cursor: default; }
+.jobs-row-project {
+  display: flex; align-items: center; gap: 8px; min-width: 0;
+  background: transparent; border: 0; color: inherit; font: inherit;
+  cursor: pointer; padding: 0; text-align: left; overflow: hidden;
+}
+.jobs-row-project .page-table-cell-strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; }
+.jobs-meter-cell { display: flex; align-items: center; gap: 8px; }
+.jobs-meter-cell .page-meter { flex: 1; height: 4px; }
+.jobs-meter-pct { font: 600 10.5px/1 var(--mono); color: var(--muted); white-space: nowrap; flex: none; }
+.jobs-actions-cell { display: flex; align-items: center; gap: 5px; justify-content: flex-end; }
+.jobs-fail-count { color: var(--coral); }
+
+/* Detail drawer (expanded under table) */
+.jobs-detail-drawer {
+  border-top: 1px solid var(--borderm);
+  padding: 16px 20px;
+  background: rgba(61,112,232,.04);
+  display: flex; flex-direction: column; gap: 12px;
+}
+.jobs-detail-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.jobs-detail-path { display: block; font: 650 13px/1.2 var(--font); color: var(--text); margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.jobs-detail-progress { display: flex; align-items: center; gap: 12px; }
+.jobs-detail-progress .page-meter { flex: 1; height: 5px; }
+
+/* Modal backdrop + submit modal */
+.jobs-modal-backdrop {
+  position: fixed; inset: 0; z-index: 100;
+  background: rgba(0,0,0,.7); backdrop-filter: blur(4px);
+  display: flex; align-items: center; justify-content: center; padding: 20px;
+}
+.jobs-submit-modal {
+  background: var(--surface); border: 1px solid var(--borderm);
+  border-radius: 16px; width: 100%; max-width: 480px;
+  box-shadow: var(--shl);
+}
+.jobs-modal-close {
+  background: transparent; border: 0; color: var(--faint); cursor: pointer;
+  font-size: 20px; line-height: 1; flex: none; padding: 2px;
+  transition: color var(--t) var(--te);
+}
+.jobs-modal-close:hover { color: var(--text); }
+
+/* Legacy selectors kept for frame table */
 .studio-job-row  { cursor: pointer; }
 .studio-job-path { font: 600 12.5px/1.2 var(--font); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .studio-job-id   { font: 400 10.5px/1 var(--mono); color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: 2px; }
 .studio-job-meter { height: 3px; border-radius: 999px; background: var(--overlay); overflow: hidden; margin-top: 4px; }
 .studio-job-meter span { display: block; height: 100%; border-radius: 999px; background: var(--accent); transition: width .5s cubic-bezier(.22,.68,0,1.1); }
-.studio-jobs-detail { display: flex; flex-direction: column; }
-.studio-jobs-detail-title { font: 650 13px/1.2 var(--font); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .studio-jobs-detail-progress {
   display: flex; align-items: center; gap: 12px;
   padding: 12px 20px; border-bottom: 1px solid var(--border);
@@ -967,7 +1007,6 @@ body {
 .studio-frame-table .page-table-head,
 .studio-frame-table .page-table-row { grid-template-columns: 60px minmax(0,1fr) 90px 100px; }
 .studio-job-fields { display: flex; flex-direction: column; gap: 12px; padding: 16px 20px; }
-.studio-job-submit { display: flex; justify-content: flex-end; padding: 12px 20px; border-top: 1px solid var(--border); }
 .studio-form { display: flex; flex-direction: column; gap: 12px; padding: 16px 20px; }
 
 /* ══════════════════════════════════════════════════════════════════════════
@@ -1007,6 +1046,9 @@ body {
 
 /* Search field */
 .gallery-search-field { flex: 1; min-width: 180px; max-width: 320px; }
+/* Hide the "Search" / "Sort" text labels in the toolbar — they're screen-reader text only */
+.gallery-search-field > span:first-child { display: none; }
+.gallery-sort-control > span:first-child { display: none; }
 .gallery-search-control {
   position: relative; display: flex; align-items: center;
 }
@@ -1037,6 +1079,9 @@ body {
 }
 .gallery-sort-control:hover { background: var(--overlay); border-color: rgba(255,255,255,.14); color: var(--text); }
 .gallery-sort-select {
+  display: flex; align-items: center; gap: 4px;
+}
+.gallery-sort-select select {
   background: transparent; border: 0; color: inherit; font: inherit;
   cursor: pointer; outline: none; appearance: none;
   padding: 0; min-width: 60px;
@@ -1374,6 +1419,40 @@ body {
  * SETTINGS PAGE
  * ══════════════════════════════════════════════════════════════════════════ */
 .settings-page { display: flex; flex-direction: column; }
+
+/* Sidebar + panel layout */
+.settings-layout {
+  display: grid;
+  grid-template-columns: 180px 1fr;
+  gap: 20px;
+  align-items: start;
+}
+@media (max-width: 800px) {
+  .settings-layout { grid-template-columns: 1fr; }
+}
+
+.settings-nav {
+  display: flex; flex-direction: column; gap: 2px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--rlg); overflow: hidden; padding: 8px;
+  position: sticky; top: 74px;
+}
+.settings-nav-item {
+  display: flex; align-items: center;
+  height: 34px; padding: 0 10px;
+  border-radius: var(--rsm); border: 1px solid transparent;
+  background: transparent; color: var(--muted);
+  font: 600 12.5px/1 var(--font); cursor: pointer; text-align: left;
+  transition: background var(--t) var(--te), color var(--t) var(--te), border-color var(--t) var(--te);
+}
+.settings-nav-item:hover { background: var(--overlay); color: var(--text); }
+.settings-nav-item.is-active {
+  background: var(--adim); border-color: rgba(61,112,232,.22); color: var(--text);
+}
+
+.settings-panel { display: flex; flex-direction: column; gap: 14px; }
+
+/* Inner 2-col grid (kept for the cards layout) */
 .settings-grid,
 .page-grid-2 {
   display: grid;
