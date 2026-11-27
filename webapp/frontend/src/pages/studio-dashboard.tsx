@@ -2037,6 +2037,10 @@ export default function StudioDashboard() {
                 >
                   <Icon size={15} strokeWidth={1.8} />
                   <span>{label}</span>
+                  {(() => {
+                    const count = label === "Workers" ? workers.length : label === "Jobs" ? activeJobs.length : 0;
+                    return count > 0 ? <span className="rail-badge">{count}</span> : null;
+                  })()}
                 </button>
               ))}
             </div>
@@ -2060,10 +2064,10 @@ export default function StudioDashboard() {
           aria-label={`BLENDER MCP. Coordinator status: ${backendReady ? "online" : needsAuth ? "authentication needed" : "offline"}. Open Settings`}
         >
           <span className={`connection-indicator ${backendReady ? "on" : "off"}`} aria-hidden="true" />
-          <strong>BLENDER MCP</strong>
+          <strong>{window.location.hostname || "coordinator"}</strong>
           <small aria-hidden="true">
             {backendReady
-              ? health?.version?.trim() || "connected"
+              ? `coordinator · connected${health?.version ? ` · v${health.version.trim()}` : ""}`
               : needsAuth
                 ? "Connect in Settings"
                 : "Waiting for server"}
