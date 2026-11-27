@@ -12,7 +12,11 @@ from __future__ import annotations
 import logging
 import os
 
-from mcp.server.transport_security import RequestBodyLimitMiddleware
+try:
+    from mcp.server.transport_security import RequestBodyLimitMiddleware as _RequestBodyLimitMiddleware
+    RequestBodyLimitMiddleware = _RequestBodyLimitMiddleware
+except ImportError:
+    RequestBodyLimitMiddleware = None  # type: ignore[assignment,misc]
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +52,8 @@ def apply() -> int:
         def __init__(self, *args, **kwargs):
             super().__init__(*args, **kwargs)
             self.max_request_body_size = limit
-            self.asgi_app = RequestBodyLimitMiddleware(self._handle_request, limit)
+            if RequestBodyLimitMiddleware is not None:
+                self.asgi_app = RequestBodyLimitMiddleware(self._handle_request, limit)
 
     fastmcp_http.FastMCPStreamableHTTPSessionManager = _SizedSessionManager
     logger.info("MCP request body limit set to %d MiB", limit // (1024 * 1024))

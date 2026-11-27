@@ -114,6 +114,10 @@ _HEARTBEAT_INTERVAL = 30   # seconds between pings
 _HEARTBEAT_TIMEOUT = 10    # seconds to wait for a ping response
 _WORKER_OFFLINE_AFTER = 90 # seconds of silence before marking offline
 
+_STATUS_PROBE_INTERVAL = 30  # seconds between background status probes
+_STATUS_PROBE_TIMEOUT = 12   # seconds to wait for a single probe
+_STATUS_MISS_THRESHOLD = 2   # consecutive misses before marking offline
+
 
 class BlenderFarmCoordinator:
     """MCP-worker coordinator with durable frame state and restart recovery."""
@@ -140,6 +144,10 @@ class BlenderFarmCoordinator:
         self._worker_stats: dict[str, list[float]] = {}
         self._worker_capabilities: dict[str, dict[str, Any]] = {}
         self._worker_names: dict[str, str] = {}
+        # Background status probe cache: keyed by worker_id
+        self._worker_status_cache: dict[str, dict[str, Any]] = {}
+        self._worker_miss_counts: dict[str, int] = {}
+        self._status_probe_task: asyncio.Task[None] | None = None
         self.store.recover_interrupted_jobs()
 
     def _client(self, worker_id: str) -> Any:
@@ -147,34 +155,72 @@ class BlenderFarmCoordinator:
             self._clients[worker_id] = self.client_factory(self.workers[worker_id])
         return self._clients[worker_id]
 
-    async def worker_status(self) -> list[dict[str, Any]]:
-        async def inspect(worker: WorkerConfig) -> dict[str, Any]:
-            try:
-                client = self._client(worker.worker_id)
-                tools = await client.list_tools()
-                tool_names = {tool["name"] for tool in tools}
-                if "blender_farm_worker" not in tool_names:
-                    return {"worker_id": worker.worker_id, "online": False, "error": "worker capability tool is missing"}
-                info = await client.call_tool("blender_farm_worker", {"operation": "identity"})
-                caps = info.get("render_capabilities")
-                if isinstance(caps, dict):
-                    self._worker_capabilities[worker.worker_id] = caps
-                    logger.info("Worker %s: %s", worker.worker_id, caps.get("capabilities_summary", "unknown"))
-                display_name = info.get("display_name") or worker.worker_id
-                self._worker_names[worker.worker_id] = display_name
-                return {
-                    "worker_id": worker.worker_id,
-                    "display_name": display_name,
-                    "online": bool(info.get("online", info.get("success", True))),
+    async def _probe_one(self, worker: WorkerConfig) -> None:
+        """Probe a single worker and update the status cache."""
+        wid = worker.worker_id
+        try:
+            client = self._client(wid)
+            tools = await asyncio.wait_for(client.list_tools(), timeout=_STATUS_PROBE_TIMEOUT)
+            tool_names = {tool["name"] for tool in tools}
+            if "blender_farm_worker" not in tool_names:
+                raise RuntimeError("worker capability tool is missing")
+            info = await asyncio.wait_for(
+                client.call_tool("blender_farm_worker", {"operation": "identity"}),
+                timeout=_STATUS_PROBE_TIMEOUT,
+            )
+            caps = info.get("render_capabilities")
+            if isinstance(caps, dict):
+                self._worker_capabilities[wid] = caps
+            display_name = info.get("display_name") or wid
+            self._worker_names[wid] = display_name
+            self._worker_miss_counts[wid] = 0
+            self._worker_status_cache[wid] = {
+                "worker_id": wid,
+                "display_name": display_name,
+                "online": bool(info.get("online", info.get("success", True))),
+                "url": worker.url,
+                "tools": sorted(tool_names),
+                "render_capabilities": caps,
+                "identity": _redact_worker_payload(info, worker.api_key),
+            }
+        except Exception:
+            misses = self._worker_miss_counts.get(wid, 0) + 1
+            self._worker_miss_counts[wid] = misses
+            if misses >= _STATUS_MISS_THRESHOLD:
+                # Only flip to offline after consecutive failures
+                cached = self._worker_status_cache.get(wid)
+                if cached is None or cached.get("online"):
+                    logger.warning("Worker %s: offline after %d consecutive probe failures", wid, misses)
+                self._worker_status_cache[wid] = {
+                    "worker_id": wid,
+                    "online": False,
                     "url": worker.url,
-                    "tools": sorted(tool_names),
-                    "render_capabilities": caps,
-                    "identity": _redact_worker_payload(info, worker.api_key),
+                    "error": "worker MCP request failed",
+                    **({"display_name": self._worker_names[wid]} if wid in self._worker_names else {}),
                 }
-            except Exception:
-                return {"worker_id": worker.worker_id, "online": False, "url": worker.url, "error": "worker MCP request failed"}
 
-        return await asyncio.gather(*(inspect(worker) for worker in self.workers.values()))
+    async def _probe_workers_loop(self) -> None:
+        """Background loop: probe all workers every _STATUS_PROBE_INTERVAL seconds."""
+        # Initial probe immediately so the first GET /api/v1/workers is fast
+        await asyncio.gather(*(self._probe_one(w) for w in self.workers.values()), return_exceptions=True)
+        while True:
+            await asyncio.sleep(_STATUS_PROBE_INTERVAL)
+            await asyncio.gather(*(self._probe_one(w) for w in self.workers.values()), return_exceptions=True)
+
+    def ensure_probe_running(self) -> None:
+        """Start the background probe loop if it isn't already running."""
+        if self._status_probe_task is None or self._status_probe_task.done():
+            self._status_probe_task = asyncio.create_task(
+                self._probe_workers_loop(), name="blender-farm-status-probe"
+            )
+
+    async def worker_status(self) -> list[dict[str, Any]]:
+        """Return cached worker status; starts the background probe on first call."""
+        self.ensure_probe_running()
+        if not self._worker_status_cache:
+            # Cache is empty (first call, probe hasn't finished yet) — do a live probe
+            await asyncio.gather(*(self._probe_one(w) for w in self.workers.values()), return_exceptions=True)
+        return list(self._worker_status_cache.values())
 
     async def submit_render(
         self,

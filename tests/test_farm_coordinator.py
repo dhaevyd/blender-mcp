@@ -72,6 +72,8 @@ class FakeWorker:
         if operation == "collect_output":
             data = self.files[arguments["file_path"]]
             return {"success": True, "content_base64": base64.b64encode(data).decode(), "sha256": hashlib.sha256(data).hexdigest()}
+        if operation in {"files_delete", "files_list", "files_write", "validate_project", "list_frames"}:
+            return {"success": True}
         raise AssertionError(operation)
 
 
