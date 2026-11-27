@@ -1190,7 +1190,7 @@ export default function StudioDashboard() {
     // On narrow screens the document, rather than .studio-main, scrolls.
     window.scrollTo(0, 0);
   }, [screen]);
-  const [showConnect, setShowConnect] = useState(false);
+  const [showConnect, setShowConnect] = useState(() => !getDashboardKey());
   const [draftKey, setDraftKey] = useState("");
   const [authError, setAuthError] = useState("");
   const [refreshing, setRefreshing] = useState(false);
@@ -2971,8 +2971,7 @@ export default function StudioDashboard() {
             <h2 id="connect-title">Connect coordinator</h2>
             <p>
               Enter the API key configured on the Blender MCP server. It is stored in this tab’s session storage only
-              and sent through the local Vite proxy. This preview uses HTTP, so enter the key only from this host or
-              over a trusted LAN.
+              and sent only to this server. Enter it only over localhost or a trusted connection.
             </p>
             <form onSubmit={connect}>
               <label htmlFor="api-key">BLENDER MCP API KEY</label>

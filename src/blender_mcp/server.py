@@ -1320,6 +1320,7 @@ def _dashboard_index():
             "default-src 'self'; "
             "script-src 'self' 'unsafe-inline'; "
             "style-src 'self' 'unsafe-inline'; "
+            "font-src 'self' data:; "
             "img-src 'self' data:; "
             "connect-src 'self'"
         ),
