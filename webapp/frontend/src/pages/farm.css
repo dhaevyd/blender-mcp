@@ -1696,3 +1696,47 @@ body {
 }
 .studio-rail-conn { flex-wrap: wrap; }
 .studio-rail-conn strong, .studio-rail-conn small { display: block; }
+.studio-rail-conn { display: grid !important; grid-template-columns: auto minmax(0,1fr); column-gap: 9px; row-gap: 2px; align-items: center; text-align: left; }
+.studio-rail-conn .connection-indicator { grid-row: 1 / span 2; grid-column: 1; align-self: center; }
+.studio-rail-conn strong { grid-column: 2; grid-row: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.studio-rail-conn small { grid-column: 2; grid-row: 2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Bell count badge */
+.studio-bell { position: relative; }
+.studio-bell-badge {
+  position: absolute; top: -5px; right: -5px; min-width: 16px; height: 16px; padding: 0 4px;
+  border-radius: 999px; background: var(--accent); color: #fff;
+  font: 700 9px/16px var(--font); text-align: center; box-shadow: 0 0 0 2px var(--bg);
+}
+.studio-bell-badge.is-critical { background: var(--coral); }
+.studio-bell.has-unread::after { display: none; }
+
+/* Phone: hamburger floats in the topbar instead of taking layout width */
+@media (max-width: 768px) {
+  .studio-mobile-bar {
+    position: fixed; top: 0; left: 0; width: auto; height: 54px; padding: 0 0 0 16px;
+    background: transparent; border: 0; z-index: 41;
+  }
+  .studio-mobile-title { display: none; }
+  .studio-head { padding-left: 64px; padding-right: 12px; }
+  .studio-head-actions { gap: 4px; }
+}
+
+/* ── Phone fixes: tables scroll inside their card, grids can shrink ───── */
+.overview-grid > *, .overview-main > *, .overview-side > *, .page-grid-2 > *, .monitor-columns > * { min-width: 0; }
+@media (max-width: 768px) {
+  .overview-grid { grid-template-columns: minmax(0, 1fr); }
+  .worker-table, .nr-card:has(.jobs-all-row), .nr-card:has(.studio-frame-row) { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .worker-table > * { min-width: 760px; }
+  .nr-card:has(.jobs-all-row) > *:not(.nr-card-head):not(.nr-card-foot) { min-width: 720px; }
+  .nr-card:has(.studio-frame-row) > *:not(.nr-card-head) { min-width: 560px; }
+  .page-head, .monitor-heading { flex-direction: column; align-items: stretch; }
+  .page-head .page-actions, .monitor-heading .page-actions { width: 100%; justify-content: flex-start; flex-wrap: wrap; }
+  .monitor-freshness { width: 100%; }
+  .gpu-window-control select { max-width: 100%; }
+}
+.jobs-row-project { display: flex !important; flex-direction: column; align-items: flex-start; gap: 5px; min-width: 0; text-align: left; background: none; border: 0; cursor: pointer; color: inherit; padding: 0; }
+.jobs-row-project .page-table-cell-strong { max-width: 100%; }
+.jobs-row-project .page-chip { align-self: flex-start; }
+
+.page-chip:not(.is-good):not(.is-warn):not(.is-bad):not(.is-info):not(.is-muted) { border-color: var(--border); background: var(--overlay); color: var(--muted); }

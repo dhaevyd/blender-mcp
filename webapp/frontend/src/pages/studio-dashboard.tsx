@@ -2232,7 +2232,7 @@ export default function StudioDashboard() {
                     ) : (
                       activeJobs.slice(0, 5).map((job) => {
                         const name = shortName(job.project_path);
-                        const pct = Math.round(job.progress ?? job.percent ?? 0);
+                        const pct = Math.round(jobProgress(job) ?? 0);
                         const done = job.completed_frames ?? job.frames_completed ?? 0;
                         const total = job.total_frames ?? job.frames_total ?? (job.frame_end && job.frame_start ? job.frame_end - job.frame_start + 1 : 0);
                         return (

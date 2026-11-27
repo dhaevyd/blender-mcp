@@ -454,7 +454,7 @@ export default function StudioJobs() {
                     className="jobs-row-project"
                     onClick={() => { setSelected(isSelected ? "" : item.id); setPage(0); setMessage(""); }}
                   >
-                    <span className="page-table-cell-strong">{item.project_path}</span>
+                    <span className="page-table-cell-strong" title={item.project_path}>{item.project_path.split(/[\\/]/).pop() || item.project_path}</span>
                     <span className={`page-chip ${tone(item.status)}`}><i />{item.status}</span>
                   </button>
                   <span className="page-table-cell-muted">
