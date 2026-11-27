@@ -2277,9 +2277,10 @@ export default function StudioDashboard() {
                         </div>
                       ) : (
                         visibleAlerts.slice(0, 6).map((entry) => {
-                          const dotCls = entry.severity === "info" || entry.severity === "log"
+                          const sev = entry.severity as string;
+                          const dotCls = sev === "info" || sev === "log"
                             ? " blue"
-                            : entry.severity === "ok" || (entry.severity as string) === "success"
+                            : sev === "ok" || sev === "success"
                               ? " green"
                               : "";
                           return (
