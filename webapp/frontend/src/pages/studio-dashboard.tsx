@@ -2214,6 +2214,161 @@ export default function StudioDashboard() {
                   </div>
                 </div>
               </div>
+              {/* ── Prototype-style overview grid ───────────────────────────── */}
+              <div className="overview-grid">
+                <div className="overview-main">
+
+                  {/* Active jobs card */}
+                  <div className="card">
+                    <div className="card-head">
+                      <div>
+                        <h2>Active jobs</h2>
+                        <p>Currently dispatched to the farm.</p>
+                      </div>
+                      <span className="card-badge">{activeJobs.length} running</span>
+                    </div>
+                    {activeJobs.length === 0 ? (
+                      <div className="job-inline">
+                        <span style={{ color: "var(--nerve-muted)", font: "400 12px/1 Archivo,sans-serif" }}>
+                          {backendReady ? "No active render jobs" : "Connect coordinator to view jobs"}
+                        </span>
+                      </div>
+                    ) : (
+                      activeJobs.slice(0, 5).map((job) => {
+                        const name = shortName(job.project_path);
+                        const pct = Math.round(job.progress ?? job.percent ?? 0);
+                        const done = job.completed_frames ?? job.frames_completed ?? 0;
+                        const total = job.total_frames ?? job.frames_total ?? (job.frame_end && job.frame_start ? job.frame_end - job.frame_start + 1 : 0);
+                        return (
+                          <div className="job-inline" key={job.id ?? job.job_id}>
+                            <span className="chip info" style={{ flex: "none" }}><i />Rendering</span>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ font: "600 12.5px/1.3 Archivo,sans-serif", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                {name || job.id || job.job_id || "Job"}
+                              </div>
+                              <div style={{ font: "400 11px/1 Archivo,sans-serif", color: "var(--nerve-muted)", marginTop: 3 }}>
+                                frames {job.frame_start ?? 1}–{job.frame_end ?? (total > 0 ? total : "?")}
+                              </div>
+                            </div>
+                            {total > 0 && (
+                              <div className="progress-bar" style={{ minWidth: 90 }}>
+                                <div className="progress-track">
+                                  <div className="progress-fill" style={{ width: `${pct}%` }} />
+                                </div>
+                                <div className="progress-pct">{done}/{total} — {pct}%</div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+
+                  {/* Activity feed */}
+                  <div className="card">
+                    <div className="card-head">
+                      <div><h2>Activity</h2><p>Recent farm events.</p></div>
+                    </div>
+                    <div className="feed">
+                      {visibleAlerts.length === 0 ? (
+                        <div className="feed-item">
+                          <div className="feed-dot" />
+                          <div className="feed-msg">No recent events — farm is quiet.</div>
+                        </div>
+                      ) : (
+                        visibleAlerts.slice(0, 6).map((entry) => {
+                          const dotCls = entry.severity === "info" || entry.severity === "log"
+                            ? " blue"
+                            : entry.severity === "ok" || (entry.severity as string) === "success"
+                              ? " green"
+                              : "";
+                          return (
+                            <div className="feed-item" key={entry.id}>
+                              <div className={`feed-dot${dotCls}`} />
+                              <div className="feed-msg">
+                                <strong>{entry.title}</strong>
+                                {entry.detail ? ` — ${entry.detail}` : ""}
+                              </div>
+                              <div className="feed-time">{entry.meta ?? ""}</div>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+
+                </div>{/* end overview-main */}
+
+                <div className="overview-side">
+
+                  {/* Workers card */}
+                  <div className="card">
+                    <div className="card-head">
+                      <div><h2>Workers</h2></div>
+                      <span className="card-badge">{onlineWorkers} / {workers.length} online</span>
+                    </div>
+                    {workers.length === 0 ? (
+                      <div className="worker-mini">
+                        <span className="status-dot" aria-hidden="true" />
+                        <div style={{ flex: 1, color: "var(--nerve-muted)", font: "400 11.5px/1 Archivo,sans-serif" }}>
+                          No workers enrolled
+                        </div>
+                      </div>
+                    ) : (
+                      workers.map((w, wi) => {
+                        const online = w.online ?? false;
+                        const gpuName = w.identity?.gpu_devices?.[0]?.split(",")[0] ?? "No GPU reported";
+                        return (
+                          <div className="worker-mini" key={w.worker_id ?? wi}>
+                            <span className={`status-dot${online ? " on" : ""}`} aria-hidden="true" />
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ font: "600 12px/1 Archivo,sans-serif" }}>
+                                {w.name ?? w.identity?.hostname ?? w.worker_id ?? `Worker ${wi + 1}`}
+                              </div>
+                              <div style={{ font: "400 10.5px/1 Archivo,sans-serif", color: "var(--nerve-muted)", marginTop: 3 }}>
+                                {gpuName}
+                              </div>
+                            </div>
+                            <span className={`chip ${online ? "good" : "bad"}`} style={{ fontSize: "8.5px" }}>
+                              <i />{online ? "Online" : "Offline"}
+                            </span>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+
+                  {/* Queue card */}
+                  <div className="card">
+                    <div className="card-head">
+                      <div><h2>Queue</h2><p>Waiting to dispatch.</p></div>
+                      <span className="card-badge">{queuedJobs.length} jobs</span>
+                    </div>
+                    {queuedJobs.length === 0 ? (
+                      <div className="worker-mini">
+                        <span className="chip muted" style={{ fontSize: "8.5px", flex: "none" }}>Queue</span>
+                        <div style={{ flex: 1, minWidth: 0, font: "500 11.5px/1 Archivo,sans-serif", paddingLeft: 8, color: "var(--nerve-muted)" }}>
+                          Queue is empty
+                        </div>
+                      </div>
+                    ) : (
+                      queuedJobs.slice(0, 5).map((job, qi) => (
+                        <div className="worker-mini" key={job.id ?? job.job_id ?? qi}>
+                          <span className="chip muted" style={{ fontSize: "8.5px", flex: "none" }}>Queue</span>
+                          <div style={{ flex: 1, minWidth: 0, font: "500 11.5px/1 Archivo,sans-serif", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", paddingLeft: 8 }}>
+                            {shortName(job.project_path) || job.id || job.job_id || "Job"}
+                          </div>
+                          <div style={{ font: "400 10.5px/1 Archivo,sans-serif", color: "#3a3d47" }}>#{qi + 1}</div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+
+                </div>{/* end overview-side */}
+              </div>{/* end overview-grid */}
+
+              {/* ── Legacy nerve cards (data still live, visually hidden) ──── */}
+              <div style={{ display: "none" }}>
               <div className="nerve-cards-row">
                 <section className="nr-card" id="studio-nodes-card" aria-label="Infrastructure nodes">
                   <header className="nr-card-head">
@@ -2738,6 +2893,8 @@ export default function StudioDashboard() {
                   </section>
                 )}
               </div>
+
+              </div>{/* end hidden legacy cards */}
 
               <footer className="studio-footer nr-footer">
                 <span>
