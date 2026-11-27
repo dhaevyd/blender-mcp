@@ -8,18 +8,25 @@
   --studio-raised: #111420;
   --studio-surface-raised: #111420;
   --studio-surface-muted: #0f111a;
-  --studio-border: #1a1d27;
+  --studio-border: rgba(255,255,255,.07);
+  --studio-border-mid: rgba(255,255,255,.11);
+  --studio-overlay: #161a26;
   --studio-text: #ecedf2;
   --studio-muted: #72757f;
+  --studio-faint: #3a3d47;
   --studio-text-muted: #72757f;
   --studio-accent: #3d70e8;
-  --studio-accent-muted: #0d1a3a;
+  --studio-accent-dim: rgba(61,112,232,.14);
+  --studio-accent-glow: rgba(61,112,232,.28);
+  --studio-accent-muted: rgba(61,112,232,.14);
   --studio-accent-contrast: #ffffff;
   --studio-focus: #7ba8f5;
   --studio-status-good: hsl(145 62% 50%);
   --studio-status-warning: hsl(38 90% 58%);
   --studio-danger: hsl(2 78% 65%);
-  --studio-shadow: 0 1px 3px rgb(0 0 0 / 36%), 0 8px 24px rgb(0 0 0 / 18%);
+  --studio-shadow: 0 1px 2px rgba(0,0,0,.5);
+  --studio-shadow-md: 0 2px 8px rgba(0,0,0,.45), 0 1px 2px rgba(0,0,0,.6);
+  --studio-shadow-lg: 0 4px 24px rgba(0,0,0,.55), 0 1px 3px rgba(0,0,0,.7);
   /* Semantic color aliases used across pages */
   --nerve-green: hsl(145 62% 50%);
   --nerve-teal: hsl(174 72% 50%);

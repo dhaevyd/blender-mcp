@@ -45,6 +45,7 @@ import "./studio-nerve.css";
 import "./studio-cards.css";
 import "./studio-pages.css";
 import "./studio-shell.css";
+import "./studio-v2.css";
 import { alertEvents, jobEvents, type ToastMessage, workerEvents } from "../common/notificationEvents";
 import { type NotificationPrefs, readNotificationPrefs, writeNotificationPrefs } from "../common/notificationPrefs";
 import ToastStack from "../common/ToastStack";

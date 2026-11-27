@@ -1,0 +1,568 @@
+/*
+ * studio-v2.css — comprehensive visual redesign layer.
+ * Loaded last; wins over every earlier sheet. Maps the approved prototype
+ * design onto the existing React class structure.
+ *
+ * Palette reference:
+ *   bg #05060a · rail #080a0f · surface #0c0e14 · raised #111420
+ *   overlay #161a26 · border rgba(255,255,255,.07)
+ *   text #ecedf2 · muted #72757f · faint #3a3d47
+ *   accent #3d70e8 · adim rgba(61,112,232,.14) · aglow rgba(61,112,232,.28)
+ *   green hsl(145 62% 50%) · teal hsl(174 72% 50%)
+ *   yellow hsl(38 90% 58%) · coral hsl(2 78% 65%)
+ */
+
+/* ─── Override nerve vars to match new palette ───────────────────────────── */
+.studio-shell {
+  --nerve-bg:      #05060a;
+  --nerve-card:    #0c0e14;
+  --nerve-raised:  #111420;
+  --nerve-border:  rgba(255,255,255,.07);
+  --nerve-muted:   #72757f;
+  --nerve-radius:  14px;
+  --nerve-radius-sm: 10px;
+
+  /* also re-expose as direct tokens for any component that needs them */
+  --studio-overlay: #161a26;
+  --studio-faint:   #3a3d47;
+}
+
+/* ─── Global scrollbar ───────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #3a3d47; border-radius: 999px; }
+::-webkit-scrollbar-thumb:hover { background: #72757f; }
+
+/* ─── Shell & body ───────────────────────────────────────────────────────── */
+body {
+  background: #05060a;
+  color: #ecedf2;
+}
+
+.studio-shell {
+  background: #05060a;
+  color: #ecedf2;
+}
+
+.studio-shell .studio-main {
+  background: #05060a;
+}
+
+/* ─── Rail sidebar ───────────────────────────────────────────────────────── */
+.studio-shell .studio-sidebar {
+  background: #080a0f;
+  border-right-color: rgba(255,255,255,.07);
+}
+
+/* ─── Nav label (section header) ─────────────────────────────────────────── */
+.studio-rail-label {
+  color: #3a3d47 !important;
+  letter-spacing: .14em;
+}
+
+/* ─── Nav item ───────────────────────────────────────────────────────────── */
+.studio-shell .studio-rail-item {
+  color: #72757f;
+  border-radius: 7px;
+  font-size: 12.5px;
+}
+
+.studio-shell .studio-rail-item:hover {
+  background: #161a26;
+  color: #ecedf2;
+}
+
+/* ─── Topbar / sticky header ─────────────────────────────────────────────── */
+.studio-head {
+  background: rgba(5,6,10,.85) !important;
+  border-bottom: 1px solid rgba(255,255,255,.07) !important;
+  backdrop-filter: blur(20px) !important;
+  -webkit-backdrop-filter: blur(20px) !important;
+}
+
+.studio-head p {
+  display: none; /* hide subtitle in compact topbar mode */
+}
+
+/* topbar screen title (non-overview) */
+.studio-head-screen {
+  font: 650 15px/1 var(--font-display, "Archivo", sans-serif);
+  color: #ecedf2;
+  letter-spacing: -.01em;
+  padding-top: 0 !important;
+  display: inline-block;
+}
+
+/* ─── Page content area ──────────────────────────────────────────────────── */
+.studio-shell .overview-content {
+  padding: 28px 28px 48px;
+}
+
+@media (max-width: 768px) {
+  .studio-shell .overview-content {
+    padding: 20px 16px 48px;
+  }
+}
+
+/* ─── All panels / cards ─────────────────────────────────────────────────── */
+.studio-shell .panel,
+.studio-shell .gpu-card,
+.nr-card,
+.studio-shell .page-stat {
+  background: #0c0e14 !important;
+  border: 1px solid rgba(255,255,255,.07) !important;
+  border-radius: 14px !important;
+  box-shadow: 0 1px 2px rgba(0,0,0,.5) !important;
+  transition: border-color 150ms cubic-bezier(.4,0,.2,1), box-shadow 150ms cubic-bezier(.4,0,.2,1), transform 150ms cubic-bezier(.4,0,.2,1) !important;
+}
+
+.studio-shell .panel:hover,
+.studio-shell .gpu-card:hover,
+.nr-card:hover {
+  border-color: rgba(255,255,255,.11) !important;
+  box-shadow: 0 2px 8px rgba(0,0,0,.45), 0 1px 2px rgba(0,0,0,.6) !important;
+}
+
+/* panel-header separator */
+.studio-shell .panel-header {
+  border-bottom-color: rgba(255,255,255,.07) !important;
+}
+
+/* ─── Stat/KPI tiles ─────────────────────────────────────────────────────── */
+.nerve-kpi-tile,
+.studio-shell .page-stat {
+  background: #0c0e14 !important;
+  border: 1px solid rgba(255,255,255,.07) !important;
+  border-radius: 14px !important;
+  box-shadow: 0 1px 2px rgba(0,0,0,.5);
+  transition: border-color 150ms cubic-bezier(.4,0,.2,1), box-shadow 150ms cubic-bezier(.4,0,.2,1), transform 150ms cubic-bezier(.4,0,.2,1);
+  cursor: default;
+}
+
+.nerve-kpi-tile:hover,
+.studio-shell .page-stat:hover {
+  border-color: rgba(255,255,255,.11) !important;
+  box-shadow: 0 2px 8px rgba(0,0,0,.45), 0 1px 2px rgba(0,0,0,.6);
+  transform: translateY(-1px);
+}
+
+.studio-shell .page-stat-label {
+  font-size: 9px;
+  letter-spacing: .11em;
+  color: #72757f;
+  text-transform: uppercase;
+}
+
+.studio-shell .page-stat-value {
+  font-size: 26px;
+  letter-spacing: -.02em;
+  color: #ecedf2;
+  margin-top: 10px;
+}
+
+.studio-shell .page-stat-foot {
+  color: #3a3d47;
+  font-size: 10.5px;
+  margin-top: 6px;
+}
+
+/* Active/teal stat accent overlay */
+.studio-shell .page-stat.is-active .page-stat-value {
+  color: hsl(174 72% 50%);
+}
+
+.studio-shell .page-stat.is-active {
+  background: linear-gradient(135deg, rgba(42,210,185,.08) 0%, #0c0e14 60%) !important;
+}
+
+/* ─── Card head ──────────────────────────────────────────────────────────── */
+.nr-card-head h2,
+.studio-shell .panel-header h2 {
+  color: #ecedf2 !important;
+  font-size: 13.5px !important;
+  letter-spacing: -.01em !important;
+}
+
+.nr-card-count,
+.studio-shell .panel-count {
+  background: #161a26 !important;
+  border: 1px solid rgba(255,255,255,.11) !important;
+  color: #72757f !important;
+  border-radius: 999px !important;
+  font-size: 10px !important;
+  padding: 3px 8px !important;
+  letter-spacing: .04em;
+}
+
+/* ─── Tables ─────────────────────────────────────────────────────────────── */
+.studio-shell .page-table-head {
+  border-bottom-color: rgba(255,255,255,.07);
+  font-size: 9px;
+  letter-spacing: .12em;
+  color: #3a3d47;
+}
+
+.studio-shell .page-table-row {
+  border-bottom-color: rgba(255,255,255,.04);
+  font-size: 12.5px;
+}
+
+.studio-shell .page-table-row:hover {
+  background: #111420;
+}
+
+/* Table scroll wrapper — prevents horizontal overflow on mobile */
+.studio-shell .table-scroll-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ─── Status dots ─────────────────────────────────────────────────────────── */
+.status-dot,
+.connection-indicator {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  flex: none;
+  background: hsl(2 78% 65%);
+}
+
+.status-dot.on,
+.status-dot[data-status="online"],
+.connection-indicator[data-connected="true"] {
+  background: hsl(145 62% 50%);
+  box-shadow: 0 0 7px rgba(55,196,110,.65);
+  animation: sdpulse-v2 2.5s ease-in-out infinite;
+}
+
+@keyframes sdpulse-v2 {
+  0%, 100% { box-shadow: 0 0 7px rgba(55,196,110,.65); }
+  50%       { box-shadow: 0 0 14px rgba(55,196,110,.9), 0 0 4px rgba(55,196,110,.5); }
+}
+
+/* connection glow on the conn badge */
+.studio-shell .studio-rail-conn .connection-indicator {
+  background: hsl(145 62% 50%);
+  box-shadow: 0 0 6px rgba(55,196,110,.6);
+  animation: sdpulse-v2 2.5s ease-in-out infinite;
+}
+
+/* ─── Conn badge ─────────────────────────────────────────────────────────── */
+.studio-shell .studio-rail-conn {
+  background: #0c0e14 !important;
+  border-color: rgba(255,255,255,.07) !important;
+  border-radius: 10px !important;
+}
+
+.studio-shell .studio-rail-conn:hover {
+  background: #161a26 !important;
+  border-color: rgba(255,255,255,.11) !important;
+}
+
+/* ─── Chips ──────────────────────────────────────────────────────────────── */
+.studio-shell .page-chip,
+.chip {
+  border-radius: 6px;
+  font-size: 9.5px;
+  letter-spacing: .06em;
+}
+
+.studio-shell .page-chip.is-good, .chip.good {
+  border-color: rgba(55,196,110,.3) !important;
+  background: rgba(55,196,110,.1) !important;
+  color: hsl(145 62% 50%) !important;
+}
+
+.studio-shell .page-chip.is-warn, .chip.warn {
+  border-color: rgba(236,173,59,.3) !important;
+  background: rgba(236,173,59,.1) !important;
+  color: hsl(38 90% 58%) !important;
+}
+
+.studio-shell .page-chip.is-bad, .chip.bad {
+  border-color: rgba(221,88,80,.3) !important;
+  background: rgba(221,88,80,.1) !important;
+  color: hsl(2 78% 65%) !important;
+}
+
+.studio-shell .page-chip.is-info, .chip.info {
+  border-color: rgba(61,112,232,.3) !important;
+  background: rgba(61,112,232,.1) !important;
+  color: #7cabf5 !important;
+}
+
+/* ─── Progress / allocation bars ─────────────────────────────────────────── */
+.bar-track,
+.page-meter,
+.progress-track {
+  background: #161a26 !important;
+  height: 4px !important;
+  border-radius: 999px !important;
+  overflow: hidden;
+}
+
+.bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: hsl(174 72% 50%);
+  box-shadow: 0 0 6px rgba(42,210,185,.5);
+  transition: width .5s cubic-bezier(.22,.68,0,1.1);
+}
+
+.bar-fill.warm { background: hsl(38 90% 58%); box-shadow: 0 0 6px rgba(236,173,59,.5); }
+.bar-fill.hot  { background: hsl(2 78% 65%);  box-shadow: 0 0 6px rgba(221,88,80,.5); }
+
+.page-meter > span {
+  background: hsl(174 72% 50%);
+  box-shadow: 0 0 6px rgba(42,210,185,.5);
+}
+
+.page-meter.is-warm > span { background: hsl(38 90% 58%); }
+.page-meter.is-hot > span  { background: hsl(2 78% 65%); }
+
+/* progress fill with accent gradient */
+.progress-fill {
+  background: linear-gradient(90deg, #3d70e8, #7cb8f8);
+  box-shadow: 0 0 8px rgba(61,112,232,.28);
+}
+
+/* ─── Buttons ─────────────────────────────────────────────────────────────── */
+.studio-shell .page-btn {
+  border-color: rgba(255,255,255,.11);
+  background: #161a26;
+  color: #72757f;
+  transition: background 150ms cubic-bezier(.4,0,.2,1), color 150ms cubic-bezier(.4,0,.2,1), border-color 150ms cubic-bezier(.4,0,.2,1), transform 150ms cubic-bezier(.4,0,.2,1) !important;
+}
+
+.studio-shell .page-btn:hover:not(:disabled) {
+  background: #111420;
+  color: #ecedf2;
+  border-color: rgba(255,255,255,.14);
+  transform: translateY(-1px) !important;
+}
+
+.studio-shell .page-btn:active:not(:disabled) {
+  transform: translateY(0) !important;
+}
+
+.studio-shell .page-btn.is-primary {
+  background: #3d70e8;
+  border-color: transparent;
+  color: #fff;
+  box-shadow: 0 1px 8px rgba(61,112,232,.28);
+}
+
+.studio-shell .page-btn.is-primary:hover:not(:disabled) {
+  filter: brightness(1.1);
+  box-shadow: 0 2px 16px rgba(61,112,232,.28);
+}
+
+/* ─── Gallery items ──────────────────────────────────────────────────────── */
+.studio-shell .gallery-item {
+  border-color: rgba(255,255,255,.07) !important;
+  background: #0c0e14 !important;
+  border-radius: 14px !important;
+  overflow: hidden;
+  transition: border-color 150ms cubic-bezier(.4,0,.2,1), transform .2s cubic-bezier(.4,0,.2,1), box-shadow .2s cubic-bezier(.4,0,.2,1) !important;
+}
+
+.studio-shell .gallery-item:hover {
+  border-color: rgba(255,255,255,.11) !important;
+  transform: translateY(-3px) !important;
+  box-shadow: 0 4px 24px rgba(0,0,0,.55), 0 1px 3px rgba(0,0,0,.7) !important;
+}
+
+.studio-shell .gallery-item:active {
+  transform: translateY(-1px) !important;
+}
+
+/* ─── Log panel ──────────────────────────────────────────────────────────── */
+.studio-shell .worker-logs-body,
+.studio-shell .log-panel,
+.studio-shell pre {
+  background: #161a26 !important;
+  border-radius: 10px !important;
+  font-family: "JetBrains Mono", ui-monospace, monospace !important;
+  font-size: 11.5px !important;
+  color: #72757f !important;
+}
+
+.studio-shell .worker-log-line.is-warning { color: hsl(38 90% 58%); }
+.studio-shell .worker-log-line.is-error,
+.studio-shell .worker-log-line.is-critical { color: hsl(2 78% 65%); }
+
+/* ─── Feed / activity items ──────────────────────────────────────────────── */
+.studio-shell .feed-item {
+  border-bottom-color: rgba(255,255,255,.04);
+  transition: background 150ms cubic-bezier(.4,0,.2,1);
+}
+
+.studio-shell .feed-item:hover {
+  background: #111420;
+}
+
+/* ─── Page head h1 (non-topbar) ──────────────────────────────────────────── */
+.studio-shell .page-head h1 {
+  font: 700 28px/1.1 var(--font-display, "Archivo", sans-serif);
+  letter-spacing: -.025em;
+  color: #ecedf2;
+}
+
+.studio-shell .page-head h1 .page-period,
+.studio-shell .page-head h1 em {
+  color: #3d70e8;
+  font-style: normal;
+}
+
+.studio-shell .page-head p {
+  margin-top: 5px;
+  font-size: 12.5px;
+  color: #72757f;
+  line-height: 1.55;
+}
+
+/* ─── Mobile topbar ──────────────────────────────────────────────────────── */
+.studio-mobile-bar {
+  background: #080a0f !important;
+  border-bottom-color: rgba(255,255,255,.07) !important;
+}
+
+.studio-mobile-title {
+  color: #ecedf2 !important;
+}
+
+.studio-menu-trigger {
+  background: #111420 !important;
+  border-color: rgba(255,255,255,.07) !important;
+  color: #ecedf2 !important;
+}
+
+/* Mobile drawer overlay */
+.studio-shell .studio-sidebar-backdrop,
+.studio-shell .mobile-backdrop {
+  background: rgba(0,0,0,.6);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
+
+/* ─── Icon buttons in topbar ─────────────────────────────────────────────── */
+.studio-shell .studio-head-actions .icon-button,
+.studio-shell .studio-head-actions .profile-chip,
+.studio-shell .studio-head-actions > button[aria-label^="Switch to"] {
+  border-color: rgba(255,255,255,.07);
+  background: transparent;
+  color: #72757f;
+  transition: background 150ms cubic-bezier(.4,0,.2,1), color 150ms cubic-bezier(.4,0,.2,1), border-color 150ms cubic-bezier(.4,0,.2,1), transform 150ms cubic-bezier(.4,0,.2,1) !important;
+}
+
+.studio-shell .studio-head-actions .icon-button:hover,
+.studio-shell .studio-head-actions .profile-chip:hover,
+.studio-shell .studio-head-actions > button[aria-label^="Switch to"]:hover {
+  background: #161a26;
+  color: #ecedf2;
+  border-color: rgba(255,255,255,.11);
+  transform: scale(.92);
+}
+
+/* ─── Notification panel ─────────────────────────────────────────────────── */
+.studio-notif-panel {
+  background: #111420 !important;
+  border-color: rgba(255,255,255,.07) !important;
+  box-shadow: 0 18px 48px rgba(0,0,0,.55) !important;
+  border-radius: 14px !important;
+}
+
+/* ─── Settings panels ────────────────────────────────────────────────────── */
+.studio-shell .page-list-row {
+  background: #111420;
+  border-color: rgba(255,255,255,.07);
+  border-radius: 10px;
+}
+
+.studio-shell .page-note {
+  background: #0f111a;
+  color: #72757f;
+  border-radius: 10px;
+}
+
+/* ─── Form fields ─────────────────────────────────────────────────────────── */
+.studio-shell .page-input,
+.studio-shell .page-select,
+.studio-shell .page-textarea {
+  background: #0c0e14;
+  border-color: rgba(255,255,255,.1);
+  color: #ecedf2;
+}
+
+.studio-shell .page-input:focus-visible,
+.studio-shell .page-select:focus-visible,
+.studio-shell .page-textarea:focus-visible {
+  outline-color: #3d70e8;
+  border-color: rgba(61,112,232,.4);
+}
+
+/* ─── Segmented control ──────────────────────────────────────────────────── */
+.studio-shell .page-segment {
+  background: #0c0e14;
+  border-color: rgba(255,255,255,.07);
+}
+
+.studio-shell .page-segment button[aria-pressed="true"],
+.studio-shell .page-segment button.is-active {
+  background: #111420;
+  color: #ecedf2;
+}
+
+/* ─── Page divider ───────────────────────────────────────────────────────── */
+.studio-shell .page-divider {
+  background: rgba(255,255,255,.07);
+}
+
+/* ─── GPU alloc bars in overview ─────────────────────────────────────────── */
+.studio-shell .nr-alloc-bar-track {
+  background: #161a26;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.studio-shell .nr-alloc-bar-fill {
+  background: #3d70e8;
+  box-shadow: 0 0 8px rgba(61,112,232,.28);
+}
+
+/* ─── Page animations ─────────────────────────────────────────────────────── */
+@keyframes v2PageIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.studio-shell .overview-content,
+.studio-shell .page {
+  animation: v2PageIn .18s cubic-bezier(.4,0,.2,1) both;
+}
+
+/* ─── Responsive ─────────────────────────────────────────────────────────── */
+@media (max-width: 600px) {
+  .studio-shell .studio-sidebar {
+    background: #080a0f;
+    border: 1px solid rgba(255,255,255,.07);
+    border-left: 0;
+    border-radius: 0 14px 14px 0;
+    box-shadow: 4px 0 32px rgba(0,0,0,.7);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .studio-shell .overview-content,
+  .studio-shell .page,
+  .nr-card,
+  .studio-shell .panel,
+  .studio-shell .page-stat,
+  .nerve-kpi-tile,
+  .status-dot.on,
+  .studio-shell .studio-rail-conn .connection-indicator {
+    animation: none !important;
+    transition: none !important;
+    transform: none !important;
+  }
+}
