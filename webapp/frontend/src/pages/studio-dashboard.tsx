@@ -174,8 +174,7 @@ const NAV = [
 ];
 
 const NAV_SECTIONS = [
-  { label: "", items: NAV.filter((item) => item.label === "Overview") },
-  { label: "Farm", items: NAV.filter((item) => item.label === "Workers" || item.label === "Jobs") },
+  { label: "", items: ["Overview", "Workers", "Jobs"].flatMap((l) => NAV.filter((item) => item.label === l)) },
   { label: "Output", items: NAV.filter((item) => item.label === "Gallery" || item.label === "Monitoring") },
   { label: "System", items: NAV.filter((item) => item.label === "Settings") },
 ];
@@ -2052,7 +2051,7 @@ export default function StudioDashboard() {
           }}
         >
           <Plus size={14} strokeWidth={2} />
-          <span>Add worker</span>
+          <span>New render job</span>
         </button>
         <button
           type="button"
