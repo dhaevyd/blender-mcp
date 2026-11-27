@@ -26,6 +26,7 @@ import {
 } from "react";
 import { dashboardAuthHeaders, getDashboardKey } from "../api/dashboardAuth";
 import StudioWorkers from "./studio-workers";
+
 /* farm.css loaded by studio-dashboard.tsx */
 
 type WorkspaceEntry = {
@@ -133,7 +134,10 @@ function AuthThumb({ path }: { path: string }) {
     let objectUrl = "";
     void (async () => {
       try {
-        const response = await fetch(fileUrl(path, true), { headers: dashboardAuthHeaders(), signal: controller.signal });
+        const response = await fetch(fileUrl(path, true), {
+          headers: dashboardAuthHeaders(),
+          signal: controller.signal,
+        });
         if (!response.ok) return;
         objectUrl = URL.createObjectURL(await response.blob());
         if (!controller.signal.aborted) setSrc(objectUrl);
@@ -163,7 +167,9 @@ function EntryIcon({ entry, size = 20 }: { entry: WorkspaceEntry; size?: number 
         width={size}
         height={size}
         style={{ objectFit: "cover", borderRadius: 2 }}
-        onError={(e) => { (e.currentTarget as HTMLImageElement).src = BLEND_CUBE_SVG; }}
+        onError={(e) => {
+          (e.currentTarget as HTMLImageElement).src = BLEND_CUBE_SVG;
+        }}
         aria-hidden="true"
       />
     );
@@ -1196,7 +1202,11 @@ export default function StudioScreens({
                   {entryCountLabel(entries)}
                 </p>
               )}
-              <button type="button" className="page-btn is-ghost is-sm gallery-trash-button" onClick={() => void openTrash()}>
+              <button
+                type="button"
+                className="page-btn is-ghost is-sm gallery-trash-button"
+                onClick={() => void openTrash()}
+              >
                 <Trash2 size={14} aria-hidden="true" /> Recycle bin
               </button>
               <button
@@ -1291,7 +1301,11 @@ export default function StudioScreens({
                   title={`Sort ${sortDirection === "asc" ? "ascending" : "descending"}; toggle direction`}
                   onClick={toggleSortDirection}
                 >
-                  {sortDirection === "asc" ? <ArrowUp size={14} aria-hidden="true" /> : <ArrowDown size={14} aria-hidden="true" />}
+                  {sortDirection === "asc" ? (
+                    <ArrowUp size={14} aria-hidden="true" />
+                  ) : (
+                    <ArrowDown size={14} aria-hidden="true" />
+                  )}
                 </button>
               </div>
               <div className="page-segment gallery-view-toggle" role="group" aria-label="Gallery layout">
@@ -1324,16 +1338,36 @@ export default function StudioScreens({
                 <span className="gallery-bulk-count" aria-live="polite">
                   {checked.size} selected
                 </span>
-                <button type="button" className="gallery-bulk-button" onClick={() => setChecked(new Set(visible.map((row) => row.path)))} disabled={bulkBusy}>
+                <button
+                  type="button"
+                  className="gallery-bulk-button"
+                  onClick={() => setChecked(new Set(visible.map((row) => row.path)))}
+                  disabled={bulkBusy}
+                >
                   Select all
                 </button>
-                <button type="button" className="gallery-bulk-button" onClick={() => setBulkMoveOpen(true)} disabled={bulkBusy}>
+                <button
+                  type="button"
+                  className="gallery-bulk-button"
+                  onClick={() => setBulkMoveOpen(true)}
+                  disabled={bulkBusy}
+                >
                   Move to…
                 </button>
-                <button type="button" className="gallery-bulk-button is-danger" onClick={() => setBulkDeleteOpen(true)} disabled={bulkBusy}>
+                <button
+                  type="button"
+                  className="gallery-bulk-button is-danger"
+                  onClick={() => setBulkDeleteOpen(true)}
+                  disabled={bulkBusy}
+                >
                   Delete
                 </button>
-                <button type="button" className="gallery-bulk-button is-ghost" onClick={() => setChecked(new Set())} disabled={bulkBusy}>
+                <button
+                  type="button"
+                  className="gallery-bulk-button is-ghost"
+                  onClick={() => setChecked(new Set())}
+                  disabled={bulkBusy}
+                >
                   Clear
                 </button>
                 {bulkError && (
@@ -1790,17 +1824,27 @@ export default function StudioScreens({
             if (event.target === event.currentTarget && !bulkBusy) setBulkDeleteOpen(false);
           }}
         >
-          <div className="gallery-confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="gallery-bulk-delete-title">
+          <div
+            className="gallery-confirm-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="gallery-bulk-delete-title"
+          >
             <div>
               <span className="panel-kicker">MOVE TO TRASH</span>
               <h2 id="gallery-bulk-delete-title">Delete {describeCount(checked.size)}?</h2>
             </div>
             <p>
-              Everything selected moves to the workspace trash. Nothing is erased. You can restore items from the Recycle bin until
-              the trash is emptied.
+              Everything selected moves to the workspace trash. Nothing is erased. You can restore items from the
+              Recycle bin until the trash is emptied.
             </p>
             <footer>
-              <button type="button" className="gallery-confirm-cancel" onClick={() => setBulkDeleteOpen(false)} disabled={bulkBusy}>
+              <button
+                type="button"
+                className="gallery-confirm-cancel"
+                onClick={() => setBulkDeleteOpen(false)}
+                disabled={bulkBusy}
+              >
                 Cancel
               </button>
               <button
@@ -1823,18 +1867,33 @@ export default function StudioScreens({
             if (event.target === event.currentTarget && !bulkBusy) setBulkMoveOpen(false);
           }}
         >
-          <div className="gallery-confirm-dialog gallery-move-dialog" role="dialog" aria-modal="true" aria-labelledby="gallery-bulk-move-title">
+          <div
+            className="gallery-confirm-dialog gallery-move-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="gallery-bulk-move-title"
+          >
             <div>
               <span className="panel-kicker">MOVE</span>
               <h2 id="gallery-bulk-move-title">Move {describeCount(checked.size)} to…</h2>
             </div>
             <div className="gallery-move-options" role="group" aria-label="Destination folders">
               {folder !== "" && (
-                <button type="button" className="gallery-move-option" onClick={() => void runBulkMove(Array.from(checked), parentPath(folder))} disabled={bulkBusy}>
+                <button
+                  type="button"
+                  className="gallery-move-option"
+                  onClick={() => void runBulkMove(Array.from(checked), parentPath(folder))}
+                  disabled={bulkBusy}
+                >
                   ↑ Up one level
                 </button>
               )}
-              <button type="button" className="gallery-move-option" onClick={() => void runBulkMove(Array.from(checked), "")} disabled={bulkBusy}>
+              <button
+                type="button"
+                className="gallery-move-option"
+                onClick={() => void runBulkMove(Array.from(checked), "")}
+                disabled={bulkBusy}
+              >
                 Workspace root
               </button>
               {entries
@@ -1857,7 +1916,12 @@ export default function StudioScreens({
               </p>
             )}
             <footer>
-              <button type="button" className="gallery-confirm-cancel" onClick={() => setBulkMoveOpen(false)} disabled={bulkBusy}>
+              <button
+                type="button"
+                className="gallery-confirm-cancel"
+                onClick={() => setBulkMoveOpen(false)}
+                disabled={bulkBusy}
+              >
                 Cancel
               </button>
             </footer>

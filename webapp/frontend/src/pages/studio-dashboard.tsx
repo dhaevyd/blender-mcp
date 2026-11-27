@@ -16,13 +16,24 @@ import {
   MemoryStick,
   Plus,
   RefreshCw,
+  Search,
   Server,
   Settings,
   ShieldCheck,
   X,
   Zap,
 } from "lucide-react";
-import { type FormEvent, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import {
+  type FormEvent,
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { clearDashboardKey, dashboardAuthHeaders, getDashboardKey, setDashboardKey } from "../api/dashboardAuth";
 import { getBackendHealth, getDiagnostics, getFarmGpuTelemetry, getFarmStatus } from "../api/mcp";
 import { GpuCollapseButton, GpuCollapseTitle, GpuNameBadge, useGpuCardState } from "../components/GpuCardChrome";
@@ -40,12 +51,29 @@ import { type MetricSeriesPoint, MetricSparkline } from "../components/MetricSpa
 import { gpuKey, setGpuCollapsedForKeys, useAllGpusCollapsed } from "./gpu-card-prefs";
 import "./farm.css";
 import { alertEvents, jobEvents, type ToastMessage, workerEvents } from "../common/notificationEvents";
+import {
+  type NotificationLogEntry,
+  prependToLog,
+  readNotificationLog,
+  writeNotificationLog,
+} from "../common/notificationLog";
 import { type NotificationPrefs, readNotificationPrefs, writeNotificationPrefs } from "../common/notificationPrefs";
 import ToastStack from "../common/ToastStack";
-import { type NotificationLogEntry, prependToLog, readNotificationLog, writeNotificationLog } from "../common/notificationLog";
-import StudioJobs from "./studio-jobs";
-import StudioScreens, { type GalleryFileRequest } from "./studio-screens";
-import SettingsScreen, { type Diagnostics, type GpuProbe } from "./studio-settings-screen";
+import CommandPalette, { type PaletteCommand } from "./studio-command-palette";
+import type { GalleryFileRequest } from "./studio-screens";
+import type { Diagnostics, GpuProbe } from "./studio-settings-screen";
+import { useDialogFocus } from "./use-dialog-focus";
+
+// Heavy screens load on demand so the first paint ships less JavaScript.
+const StudioJobs = lazy(() => import("./studio-jobs"));
+const StudioScreens = lazy(() => import("./studio-screens"));
+const SettingsScreen = lazy(() => import("./studio-settings-screen"));
+const screenFallback = (
+  <div className="page-muted" role="status">
+    Loading…
+  </div>
+);
+
 import StudioThemeToggle from "./studio-theme-toggle";
 
 type Worker = {
@@ -308,7 +336,10 @@ function shortName(value?: string): string {
 function shortGpuName(gpu: GpuDevice): string {
   const name = gpu.name?.trim();
   if (!name) return "GPU";
-  return name.replace(/^NVIDIA\s+/i, "").replace(/^GeForce\s+/i, "").replace(/^RTX\s+(?=\d)/i, "RTX ");
+  return name
+    .replace(/^NVIDIA\s+/i, "")
+    .replace(/^GeForce\s+/i, "")
+    .replace(/^RTX\s+(?=\d)/i, "RTX ");
 }
 
 type DashboardSession = "unknown" | "active" | "inactive" | "unavailable";
@@ -391,7 +422,6 @@ function GpuReadoutBar({ metric, percent }: { metric: GpuMetricKey; percent?: nu
     </span>
   );
 }
-
 
 function GpuHistoryCard({
   device,
@@ -1176,6 +1206,8 @@ export default function StudioDashboard() {
     setMobileMenuOpen(false);
     setNotificationsOpen(false);
   };
+  const screenRef = useRef(screen);
+  screenRef.current = screen;
 
   useEffect(() => {
     try {
@@ -1190,6 +1222,9 @@ export default function StudioDashboard() {
     window.scrollTo(0, 0);
   }, [screen]);
   const [showConnect, setShowConnect] = useState(() => !getDashboardKey());
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const connectDialog = useRef<HTMLElement>(null);
+  useDialogFocus(connectDialog, showConnect);
   useEffect(() => {
     if (!showConnect) return;
     const onKey = (event: KeyboardEvent) => {
@@ -1270,6 +1305,17 @@ export default function StudioDashboard() {
   /** Only the request the gallery actually consumed is cleared; a newer click keeps its own. */
   const handleOpenFileHandled = useCallback((id: number | undefined) => {
     setOpenFile((current) => (current && current.id === id ? null : current));
+  }, []);
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k" && screenRef.current !== "Gallery") {
+        event.preventDefault();
+        setPaletteOpen((open) => !open);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
   }, []);
 
   const refresh = useCallback(async () => {
@@ -1574,17 +1620,14 @@ export default function StudioDashboard() {
     (worker) => !(liveWorkerGpu.get(worker.worker_id ?? "")?.online ?? worker.online),
   );
   const hotGpus = gpus.filter((gpu) => typeof gpu.temperature_c === "number" && gpu.temperature_c >= 80);
-  const busyGpus = gpus.filter(
-    (gpu) => typeof gpu.utilization_percent === "number" && gpu.utilization_percent >= 95,
-  );
+  const busyGpus = gpus.filter((gpu) => typeof gpu.utilization_percent === "number" && gpu.utilization_percent >= 95);
   const avgUtil = gpus.length
     ? Math.round(gpus.reduce((sum, gpu) => sum + (gpu.utilization_percent ?? 0), 0) / gpus.length)
     : 0;
   const vramUsed = gpus.reduce((sum, gpu) => sum + (gpu.memory_used_mib ?? 0), 0);
   const vramTotal = gpus.reduce((sum, gpu) => sum + (gpu.memory_total_mib ?? 0), 0);
   const vramPct = vramTotal > 0 ? Math.round((vramUsed / vramTotal) * 100) : 0;
-  const donutColor =
-    avgUtil > 90 ? "var(--nerve-coral)" : avgUtil >= 70 ? "var(--nerve-yellow)" : "var(--nerve-teal)";
+  const donutColor = avgUtil > 90 ? "var(--nerve-coral)" : avgUtil >= 70 ? "var(--nerve-yellow)" : "var(--nerve-teal)";
   const donutLength = 2 * Math.PI * 56;
 
   const alerts = useMemo<StudioAlert[]>(() => {
@@ -1990,6 +2033,54 @@ export default function StudioDashboard() {
     }
   }
 
+  const paletteCommands: PaletteCommand[] = [
+    ...NAV.map(({ label }) => ({
+      id: `go-${label.toLowerCase()}`,
+      label: `Go to ${label}`,
+      hint: "Page",
+      keywords: label,
+      run: () => selectScreen(label),
+    })),
+    {
+      id: "submit-job",
+      label: "Submit a render job",
+      hint: "Action",
+      keywords: "new render queue",
+      run: () => selectScreen("Jobs"),
+    },
+    {
+      id: "add-worker",
+      label: "Add a worker",
+      hint: "Action",
+      keywords: "enroll node",
+      run: () => selectScreen("Workers"),
+    },
+    { id: "refresh", label: "Refresh dashboard", hint: "Action", keywords: "reload update", run: () => void refresh() },
+    {
+      id: "theme",
+      label: "Toggle light / dark theme",
+      hint: "Action",
+      keywords: "appearance mode",
+      run: () =>
+        document.querySelector<HTMLButtonElement>('.studio-head-actions button[aria-label^="Switch to"]')?.click(),
+    },
+    apiKey
+      ? {
+          id: "disconnect",
+          label: "Disconnect this tab",
+          hint: "Session",
+          keywords: "logout key",
+          run: () => disconnect(),
+        }
+      : {
+          id: "connect",
+          label: "Connect coordinator",
+          hint: "Session",
+          keywords: "login key",
+          run: () => setShowConnect(true),
+        },
+  ];
+
   return (
     <div className="studio-shell">
       {mobileMenuOpen && (
@@ -2088,13 +2179,30 @@ export default function StudioDashboard() {
           <div className="studio-head-copy">
             {screen === "Overview" ? (
               <span className="studio-head-screen">
-                Overview<span className="head-period" aria-hidden="true">.</span>
+                Overview
+                <span className="head-period" aria-hidden="true">
+                  .
+                </span>
               </span>
             ) : (
-              <span className="studio-head-screen">{screen}<span className="head-period" aria-hidden="true">.</span></span>
+              <span className="studio-head-screen">
+                {screen}
+                <span className="head-period" aria-hidden="true">
+                  .
+                </span>
+              </span>
             )}
           </div>
           <div className="studio-head-actions">
+            <button
+              type="button"
+              className="icon-button"
+              onClick={() => setPaletteOpen(true)}
+              aria-label="Open command palette"
+              data-tooltip="Search · Ctrl K"
+            >
+              <Search size={16} />
+            </button>
             <div className="studio-notif-wrap" ref={notificationsRef}>
               <button
                 type="button"
@@ -2130,11 +2238,7 @@ export default function StudioDashboard() {
                   </div>
                   <div className="studio-notif-list">
                     {visibleAlerts.slice(0, 12).map((entry) => (
-                      <StudioAlertRow
-                        key={entry.id}
-                        entry={entry}
-                        onAction={() => setNotificationsOpen(false)}
-                      />
+                      <StudioAlertRow key={entry.id} entry={entry} onAction={() => setNotificationsOpen(false)} />
                     ))}
                   </div>
                   <div className="studio-notif-foot">
@@ -2202,9 +2306,7 @@ export default function StudioDashboard() {
                     {gpus.length > 0 && <small>GB</small>}
                   </div>
                   <div className="v2-stat-foot">
-                    {gpus.length > 0
-                      ? `${vramPct}% of ${formatMib(vramTotal)} GB farm total`
-                      : "no devices"}
+                    {gpus.length > 0 ? `${vramPct}% of ${formatMib(vramTotal)} GB farm total` : "no devices"}
                   </div>
                 </div>
                 <div className="v2-stat">
@@ -2221,7 +2323,6 @@ export default function StudioDashboard() {
               {/* ── Prototype-style overview grid ───────────────────────────── */}
               <div className="overview-grid">
                 <div className="overview-main">
-
                   {/* Active jobs card */}
                   <div className="card">
                     <div className="card-head">
@@ -2242,15 +2343,34 @@ export default function StudioDashboard() {
                         const name = shortName(job.project_path);
                         const pct = Math.round(jobProgress(job) ?? 0);
                         const done = job.completed_frames ?? job.frames_completed ?? 0;
-                        const total = job.total_frames ?? job.frames_total ?? (job.frame_end && job.frame_start ? job.frame_end - job.frame_start + 1 : 0);
+                        const total =
+                          job.total_frames ??
+                          job.frames_total ??
+                          (job.frame_end && job.frame_start ? job.frame_end - job.frame_start + 1 : 0);
                         return (
                           <div className="job-inline" key={job.id ?? job.job_id}>
-                            <span className="chip info" style={{ flex: "none" }}><i />Rendering</span>
+                            <span className="chip info" style={{ flex: "none" }}>
+                              <i />
+                              Rendering
+                            </span>
                             <div style={{ flex: 1, minWidth: 0 }}>
-                              <div style={{ font: "600 12.5px/1.3 Archivo,sans-serif", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                              <div
+                                style={{
+                                  font: "600 12.5px/1.3 Archivo,sans-serif",
+                                  overflow: "hidden",
+                                  textOverflow: "ellipsis",
+                                  whiteSpace: "nowrap",
+                                }}
+                              >
                                 {name || job.id || job.job_id || "Job"}
                               </div>
-                              <div style={{ font: "400 11px/1 Archivo,sans-serif", color: "var(--nerve-muted)", marginTop: 3 }}>
+                              <div
+                                style={{
+                                  font: "400 11px/1 Archivo,sans-serif",
+                                  color: "var(--nerve-muted)",
+                                  marginTop: 3,
+                                }}
+                              >
                                 frames {job.frame_start ?? 1}–{job.frame_end ?? (total > 0 ? total : "?")}
                               </div>
                             </div>
@@ -2259,7 +2379,9 @@ export default function StudioDashboard() {
                                 <div className="progress-track">
                                   <div className="progress-fill" style={{ width: `${pct}%` }} />
                                 </div>
-                                <div className="progress-pct">{done}/{total} — {pct}%</div>
+                                <div className="progress-pct">
+                                  {done}/{total} — {pct}%
+                                </div>
                               </div>
                             )}
                           </div>
@@ -2271,7 +2393,10 @@ export default function StudioDashboard() {
                   {/* Activity feed */}
                   <div className="card">
                     <div className="card-head">
-                      <div><h2>Activity</h2><p>Recent farm events.</p></div>
+                      <div>
+                        <h2>Activity</h2>
+                        <p>Recent farm events.</p>
+                      </div>
                     </div>
                     <div className="feed">
                       {visibleAlerts.length === 0 ? (
@@ -2282,11 +2407,12 @@ export default function StudioDashboard() {
                       ) : (
                         visibleAlerts.slice(0, 6).map((entry) => {
                           const sev = entry.severity as string;
-                          const dotCls = sev === "info" || sev === "log"
-                            ? " blue"
-                            : sev === "ok" || sev === "success"
-                              ? " green"
-                              : "";
+                          const dotCls =
+                            sev === "info" || sev === "log"
+                              ? " blue"
+                              : sev === "ok" || sev === "success"
+                                ? " green"
+                                : "";
                           return (
                             <div className="feed-item" key={entry.id}>
                               <div className={`feed-dot${dotCls}`} />
@@ -2301,16 +2427,19 @@ export default function StudioDashboard() {
                       )}
                     </div>
                   </div>
-
-                </div>{/* end overview-main */}
+                </div>
+                {/* end overview-main */}
 
                 <div className="overview-side">
-
                   {/* Workers card */}
                   <div className="card">
                     <div className="card-head">
-                      <div><h2>Workers</h2></div>
-                      <span className="card-badge">{onlineWorkers} / {workers.length} online</span>
+                      <div>
+                        <h2>Workers</h2>
+                      </div>
+                      <span className="card-badge">
+                        {onlineWorkers} / {workers.length} online
+                      </span>
                     </div>
                     {workers.length === 0 ? (
                       <div className="worker-mini">
@@ -2330,12 +2459,19 @@ export default function StudioDashboard() {
                               <div style={{ font: "600 12px/1 Archivo,sans-serif" }}>
                                 {w.name ?? w.identity?.hostname ?? w.worker_id ?? `Worker ${wi + 1}`}
                               </div>
-                              <div style={{ font: "400 10.5px/1 Archivo,sans-serif", color: "var(--nerve-muted)", marginTop: 3 }}>
+                              <div
+                                style={{
+                                  font: "400 10.5px/1 Archivo,sans-serif",
+                                  color: "var(--nerve-muted)",
+                                  marginTop: 3,
+                                }}
+                              >
                                 {gpuName}
                               </div>
                             </div>
                             <span className={`chip ${online ? "good" : "bad"}`} style={{ fontSize: "8.5px" }}>
-                              <i />{online ? "Online" : "Offline"}
+                              <i />
+                              {online ? "Online" : "Offline"}
                             </span>
                           </div>
                         );
@@ -2346,21 +2482,46 @@ export default function StudioDashboard() {
                   {/* Queue card */}
                   <div className="card">
                     <div className="card-head">
-                      <div><h2>Queue</h2><p>Waiting to dispatch.</p></div>
+                      <div>
+                        <h2>Queue</h2>
+                        <p>Waiting to dispatch.</p>
+                      </div>
                       <span className="card-badge">{queuedJobs.length} jobs</span>
                     </div>
                     {queuedJobs.length === 0 ? (
                       <div className="worker-mini">
-                        <span className="chip muted" style={{ fontSize: "8.5px", flex: "none" }}>Queue</span>
-                        <div style={{ flex: 1, minWidth: 0, font: "500 11.5px/1 Archivo,sans-serif", paddingLeft: 8, color: "var(--nerve-muted)" }}>
+                        <span className="chip muted" style={{ fontSize: "8.5px", flex: "none" }}>
+                          Queue
+                        </span>
+                        <div
+                          style={{
+                            flex: 1,
+                            minWidth: 0,
+                            font: "500 11.5px/1 Archivo,sans-serif",
+                            paddingLeft: 8,
+                            color: "var(--nerve-muted)",
+                          }}
+                        >
                           Queue is empty
                         </div>
                       </div>
                     ) : (
                       queuedJobs.slice(0, 5).map((job, qi) => (
                         <div className="worker-mini" key={job.id ?? job.job_id ?? qi}>
-                          <span className="chip muted" style={{ fontSize: "8.5px", flex: "none" }}>Queue</span>
-                          <div style={{ flex: 1, minWidth: 0, font: "500 11.5px/1 Archivo,sans-serif", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", paddingLeft: 8 }}>
+                          <span className="chip muted" style={{ fontSize: "8.5px", flex: "none" }}>
+                            Queue
+                          </span>
+                          <div
+                            style={{
+                              flex: 1,
+                              minWidth: 0,
+                              font: "500 11.5px/1 Archivo,sans-serif",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap",
+                              paddingLeft: 8,
+                            }}
+                          >
                             {shortName(job.project_path) || job.id || job.job_id || "Job"}
                           </div>
                           <div style={{ font: "400 10.5px/1 Archivo,sans-serif", color: "#3a3d47" }}>#{qi + 1}</div>
@@ -2368,538 +2529,545 @@ export default function StudioDashboard() {
                       ))
                     )}
                   </div>
-
-                </div>{/* end overview-side */}
-              </div>{/* end overview-grid */}
+                </div>
+                {/* end overview-side */}
+              </div>
+              {/* end overview-grid */}
 
               {/* ── Legacy nerve cards (data still live, visually hidden) ──── */}
               <div style={{ display: "none" }}>
-              <div className="nerve-cards-row">
-                <section className="nr-card" id="studio-nodes-card" aria-label="Infrastructure nodes">
-                  <header className="nr-card-head">
-                    <div>
-                      <h2>Infrastructure Nodes</h2>
-                      <p>
-                        {backendReady
-                          ? `Active Monitoring Across ${onlineWorkers} Distributed Workers`
-                          : "Connect the coordinator to stream live node data"}
-                      </p>
-                    </div>
-                  </header>
-                  <div className="nerve-tile-grid">
-                    {[
-                      {
-                        icon: <Server size={13} />,
-                        label: "Workers online",
-                        value: backendReady ? String(onlineWorkers) : "—",
-                        unit: backendReady ? `of ${workers.length} enrolled` : "not connected",
-                        delta: backendReady
-                          ? workers.length === 0
-                            ? { text: "no workers enrolled", tone: "" }
-                            : onlineWorkers === workers.length
-                              ? { text: "all online", tone: "good" }
-                              : onlineWorkers === 0
-                                ? { text: `${workers.length} offline`, tone: "bad" }
-                                : { text: `${workers.length - onlineWorkers} offline`, tone: "warn" }
-                          : { text: "waiting for server", tone: "" },
-                      },
-                      {
-                        icon: <Film size={13} />,
-                        label: "Active jobs",
-                        value: backendReady ? String(activeJobs.length) : "—",
-                        unit: backendReady ? `${queuedJobs.length} in queue` : "not connected",
-                        delta:
-                          activeJobs.length > 0 ? { text: "rendering now", tone: "info" } : { text: "idle", tone: "" },
-                      },
-                      {
-                        icon: <Cpu size={13} />,
-                        label: "GPU devices",
-                        value: gpus.length > 0 ? String(gpus.length) : "—",
-                        unit: gpus.length === 1 ? "device" : "devices",
-                        delta: { text: `avg ${avgUtil}% util`, tone: avgUtil >= 75 ? "warn" : "info" },
-                      },
-                      {
-                        icon: <MemoryStick size={13} />,
-                        label: "VRAM in use",
-                        value: gpus.length > 0 ? formatMib(vramUsed) : "—",
-                        unit: gpus.length > 0 ? `of ${formatMib(vramTotal)} GB` : "GB",
-                        delta: { text: gpus.length > 0 ? `${vramPct}% allocated` : "no devices", tone: "" },
-                      },
-                      {
-                        icon: <Zap size={13} />,
-                        label: "MCP tools",
-                        value: health?.tools != null ? String(health.tools) : "—",
-                        unit: "tools",
-                        delta: {
-                          text: health?.version ? `v${health.version}` : "not connected",
-                          tone: health?.version ? "info" : "",
-                        },
-                      },
-                      {
-                        icon: <Activity size={13} />,
-                        label: "Uptime",
-                        value: health?.uptime != null ? formatDuration(health.uptime) : "—",
-                        unit: "coordinator runtime",
-                        delta: {
-                          text: backendReady ? "since boot" : "offline",
-                          tone: backendReady ? "good" : "bad",
-                        },
-                      },
-                    ].map(({ icon, label, value, unit, delta }) => (
-                      <div className="nerve-tile" key={label}>
-                        <div className="nerve-tile-label">
-                          {icon}
-                          <span>{label}</span>
-                        </div>
-                        <div className="nerve-tile-value">
-                          <span>{value}</span>
-                          <span className="nerve-tile-unit">{unit}</span>
-                        </div>
-                        <div className={`nerve-tile-delta${delta.tone ? ` is-${delta.tone}` : ""}`}>{delta.text}</div>
-                      </div>
-                    ))}
-                  </div>
-                </section>
-
-                <section className="nr-card" aria-label="Workload allocation">
-                  <header className="nr-card-head">
-                    <div>
-                      <h2>Workload Allocation</h2>
-                      <p>
-                        {gpus.length > 0
-                          ? `${gpus.length} GPU${gpus.length === 1 ? "" : "s"} Across ${workers.length} Render Nodes`
-                          : "No farm GPUs reported"}
-                      </p>
-                    </div>
-                  </header>
-                  {gpus.length === 0 ? (
-                    <div className="nr-inset">
-                      <MemoryStick size={16} aria-hidden="true" />
+                <div className="nerve-cards-row">
+                  <section className="nr-card" id="studio-nodes-card" aria-label="Infrastructure nodes">
+                    <header className="nr-card-head">
                       <div>
-                        <strong>No farm GPUs reported</strong>
+                        <h2>Infrastructure Nodes</h2>
                         <p>
                           {backendReady
-                            ? `Coordinator probe: ${gpuEmptyMessage(diagnostics?.system?.gpu_probe)}`
-                            : "GPU telemetry comes from the authenticated coordinator and online workers."}
+                            ? `Active Monitoring Across ${onlineWorkers} Distributed Workers`
+                            : "Connect the coordinator to stream live node data"}
                         </p>
                       </div>
+                    </header>
+                    <div className="nerve-tile-grid">
+                      {[
+                        {
+                          icon: <Server size={13} />,
+                          label: "Workers online",
+                          value: backendReady ? String(onlineWorkers) : "—",
+                          unit: backendReady ? `of ${workers.length} enrolled` : "not connected",
+                          delta: backendReady
+                            ? workers.length === 0
+                              ? { text: "no workers enrolled", tone: "" }
+                              : onlineWorkers === workers.length
+                                ? { text: "all online", tone: "good" }
+                                : onlineWorkers === 0
+                                  ? { text: `${workers.length} offline`, tone: "bad" }
+                                  : { text: `${workers.length - onlineWorkers} offline`, tone: "warn" }
+                            : { text: "waiting for server", tone: "" },
+                        },
+                        {
+                          icon: <Film size={13} />,
+                          label: "Active jobs",
+                          value: backendReady ? String(activeJobs.length) : "—",
+                          unit: backendReady ? `${queuedJobs.length} in queue` : "not connected",
+                          delta:
+                            activeJobs.length > 0
+                              ? { text: "rendering now", tone: "info" }
+                              : { text: "idle", tone: "" },
+                        },
+                        {
+                          icon: <Cpu size={13} />,
+                          label: "GPU devices",
+                          value: gpus.length > 0 ? String(gpus.length) : "—",
+                          unit: gpus.length === 1 ? "device" : "devices",
+                          delta: { text: `avg ${avgUtil}% util`, tone: avgUtil >= 75 ? "warn" : "info" },
+                        },
+                        {
+                          icon: <MemoryStick size={13} />,
+                          label: "VRAM in use",
+                          value: gpus.length > 0 ? formatMib(vramUsed) : "—",
+                          unit: gpus.length > 0 ? `of ${formatMib(vramTotal)} GB` : "GB",
+                          delta: { text: gpus.length > 0 ? `${vramPct}% allocated` : "no devices", tone: "" },
+                        },
+                        {
+                          icon: <Zap size={13} />,
+                          label: "MCP tools",
+                          value: health?.tools != null ? String(health.tools) : "—",
+                          unit: "tools",
+                          delta: {
+                            text: health?.version ? `v${health.version}` : "not connected",
+                            tone: health?.version ? "info" : "",
+                          },
+                        },
+                        {
+                          icon: <Activity size={13} />,
+                          label: "Uptime",
+                          value: health?.uptime != null ? formatDuration(health.uptime) : "—",
+                          unit: "coordinator runtime",
+                          delta: {
+                            text: backendReady ? "since boot" : "offline",
+                            tone: backendReady ? "good" : "bad",
+                          },
+                        },
+                      ].map(({ icon, label, value, unit, delta }) => (
+                        <div className="nerve-tile" key={label}>
+                          <div className="nerve-tile-label">
+                            {icon}
+                            <span>{label}</span>
+                          </div>
+                          <div className="nerve-tile-value">
+                            <span>{value}</span>
+                            <span className="nerve-tile-unit">{unit}</span>
+                          </div>
+                          <div className={`nerve-tile-delta${delta.tone ? ` is-${delta.tone}` : ""}`}>{delta.text}</div>
+                        </div>
+                      ))}
                     </div>
-                  ) : (
-                    <>
-                      <div className="nerve-alloc">
-                        <div className="nerve-alloc-donut">
-                          <div className="nerve-donut">
-                            <svg viewBox="0 0 140 140" role="img" aria-label={`Average GPU load ${avgUtil}%`}>
-                              <circle
-                                cx="70"
-                                cy="70"
-                                r="56"
-                                fill="none"
-                                stroke="var(--studio-border)"
-                                strokeWidth="14"
-                              />
-                              {avgUtil > 0 ? (
+                  </section>
+
+                  <section className="nr-card" aria-label="Workload allocation">
+                    <header className="nr-card-head">
+                      <div>
+                        <h2>Workload Allocation</h2>
+                        <p>
+                          {gpus.length > 0
+                            ? `${gpus.length} GPU${gpus.length === 1 ? "" : "s"} Across ${workers.length} Render Nodes`
+                            : "No farm GPUs reported"}
+                        </p>
+                      </div>
+                    </header>
+                    {gpus.length === 0 ? (
+                      <div className="nr-inset">
+                        <MemoryStick size={16} aria-hidden="true" />
+                        <div>
+                          <strong>No farm GPUs reported</strong>
+                          <p>
+                            {backendReady
+                              ? `Coordinator probe: ${gpuEmptyMessage(diagnostics?.system?.gpu_probe)}`
+                              : "GPU telemetry comes from the authenticated coordinator and online workers."}
+                          </p>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="nerve-alloc">
+                          <div className="nerve-alloc-donut">
+                            <div className="nerve-donut">
+                              <svg viewBox="0 0 140 140" role="img" aria-label={`Average GPU load ${avgUtil}%`}>
                                 <circle
                                   cx="70"
                                   cy="70"
                                   r="56"
                                   fill="none"
-                                  stroke={donutColor}
+                                  stroke="var(--studio-border)"
                                   strokeWidth="14"
-                                  strokeLinecap="round"
-                                  strokeDasharray={`${(avgUtil / 100) * donutLength} ${donutLength}`}
-                                  transform="rotate(-90 70 70)"
                                 />
-                              ) : null}
-                            </svg>
-                            <div className="nerve-donut-center">
-                              <span className="nerve-donut-value">{avgUtil}%</span>
-                              <span className="nerve-donut-label">Load Efficiency</span>
-                            </div>
-                          </div>
-                          <div className="nerve-donut-legend">
-                            {gpus.map((gpu, index) => (
-                              <span className="nerve-legend-chip" key={gpuCardIdentity(gpu, index)}>
-                                <i style={{ background: SERIES_COLORS[index % SERIES_COLORS.length] }} />
-                                <span>{shortGpuName(gpu)}</span>
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                        <div className="nerve-alloc-list">
-                          {gpus.map((gpu, index) => {
-                            const used = gpu.memory_used_mib ?? 0;
-                            const total = gpu.memory_total_mib ?? 0;
-                            const pct = total > 0 ? Math.max(0, Math.min(100, (used / total) * 100)) : 0;
-                            return (
-                              <div className="nerve-alloc-row" key={gpuCardIdentity(gpu, index)}>
-                                <div className="nerve-alloc-top">
-                                  <span className="nerve-alloc-name">
-                                    {shortGpuName(gpu)}
-                                    <small>{gpu.worker_id ?? "Coordinator"}</small>
-                                  </span>
-                                  <span className="nerve-alloc-val">
-                                    {total > 0 ? `${formatMib(used)} / ${formatMib(total)} GB` : "—"}
-                                  </span>
-                                </div>
-                                <div
-                                  className="nerve-alloc-track"
-                                  role="meter"
-                                  aria-label={`${gpu.name ?? `GPU ${index + 1}`} VRAM`}
-                                  aria-valuemin={0}
-                                  aria-valuemax={100}
-                                  aria-valuenow={Math.round(pct)}
-                                >
-                                  <div
-                                    className="nerve-alloc-fill"
-                                    style={{
-                                      width: `${pct}%`,
-                                      background: SERIES_COLORS[index % SERIES_COLORS.length],
-                                    }}
+                                {avgUtil > 0 ? (
+                                  <circle
+                                    cx="70"
+                                    cy="70"
+                                    r="56"
+                                    fill="none"
+                                    stroke={donutColor}
+                                    strokeWidth="14"
+                                    strokeLinecap="round"
+                                    strokeDasharray={`${(avgUtil / 100) * donutLength} ${donutLength}`}
+                                    transform="rotate(-90 70 70)"
                                   />
-                                </div>
+                                ) : null}
+                              </svg>
+                              <div className="nerve-donut-center">
+                                <span className="nerve-donut-value">{avgUtil}%</span>
+                                <span className="nerve-donut-label">Load Efficiency</span>
                               </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                      <div className="nerve-alloc-footer">
-                        <span className="nerve-alloc-footer-icon">
-                          <Zap size={14} aria-hidden="true" />
-                        </span>
-                        <div className="nerve-alloc-footer-copy">
-                          <strong>Smart Resource Balancing</strong>
-                          <p>
-                            Auto routing load from {idleWorkerName ?? "idle nodes"} to{" "}
-                            {busiestWorkerName ?? "active nodes"}.
-                          </p>
-                        </div>
-                        <span className="nerve-pill">System Optimized</span>
-                      </div>
-                    </>
-                  )}
-                </section>
-
-                <section className="nr-card" id="studio-alerts-card" aria-label="Realtime alerts and events">
-                  <header className="nr-card-head">
-                    <div>
-                      <h2>Realtime alerts &amp; events</h2>
-                      <p>Live System Events And Anomaly Feed</p>
-                    </div>
-                  </header>
-                  <div className="nerve-alert-list">
-                    {visibleAlerts.slice(0, 5).map((entry) => (
-                      <StudioAlertRow key={entry.id} entry={entry} showMeta={false} />
-                    ))}
-                  </div>
-                  <div className="nr-card-foot">
-                    <span>
-                      Last Incident :{" "}
-                      {failedJobs.length + offlineWorkers.length > 0
-                        ? `${failedJobs.length + offlineWorkers.length} in this session`
-                        : "none in this session"}
-                    </span>
-                    <button type="button" onClick={openEventLog}>
-                      View all events <ArrowUpRight size={12} />
-                    </button>
-                  </div>
-                </section>
-              </div>
-
-              <div className="nerve-cards-row is-row-two">
-                <section className="nr-card" aria-label="GPU gateway heatmap">
-                  <header className="nr-card-head">
-                    <div>
-                      <h2>GPU Gateway Heatmap</h2>
-                      <p>Per Device Utilization Intensity Analysis</p>
-                    </div>
-                  </header>
-                  {gpus.length === 0 ? (
-                    <div className="nr-empty">
-                      <Cpu size={18} />
-                      <strong>No GPU telemetry</strong>
-                      <p>Coordinator GPU probes and online worker telemetry populate this grid.</p>
-                    </div>
-                  ) : (
-                    <>
-                      <div className="nerve-heatmap">
-                        {gpus.map((gpu, index) => {
-                          const util = gpu.utilization_percent ?? 0;
-                          const bucket =
-                            util >= 90
-                              ? "is-l90"
-                              : util >= 75
-                                ? "is-l75"
-                                : util >= 50
-                                  ? "is-l50"
-                                  : util >= 20
-                                    ? "is-l20"
-                                    : "is-l0";
-                          return (
-                            <span
-                              className={`nerve-heat-cell ${bucket}`}
-                              key={gpuCardIdentity(gpu, index)}
-                              title={`${shortGpuName(gpu)} — ${util}% · ${gpu.temperature_c ?? "—"}°C`}
-                            />
-                          );
-                        })}
-                      </div>
-                      <div className="nerve-heat-legend">
-                        {[
-                          { label: "0–19%", tone: "is-l0" },
-                          { label: "20–49%", tone: "is-l20" },
-                          { label: "50–74%", tone: "is-l50" },
-                          { label: "75–89%", tone: "is-l75" },
-                          { label: "90%+", tone: "is-l90" },
-                        ].map(({ label, tone }) => (
-                          <span className="nerve-heat-key" key={label}>
-                            <i className={tone} />
-                            {label}
-                          </span>
-                        ))}
-                      </div>
-                      <div className="nerve-heat-stats">
-                        <span>
-                          Peak load
-                          <b>{Math.round(Math.max(...gpus.map((gpu) => gpu.utilization_percent ?? 0)))}%</b>
-                        </span>
-                        <span>
-                          Hottest
-                          <b>
-                            {gpus.some((gpu) => typeof gpu.temperature_c === "number")
-                              ? `${Math.round(Math.max(...gpus.map((gpu) => gpu.temperature_c ?? 0)))}°C`
-                              : "—"}
-                          </b>
-                        </span>
-                        <span>
-                          Idle devices
-                          <b>{gpus.filter((gpu) => (gpu.utilization_percent ?? 0) < 20).length}</b>
-                        </span>
-                      </div>
-                    </>
-                  )}
-                </section>
-
-                <section className="nr-card" aria-label="Render load history">
-                  <header className="nr-card-head">
-                    <div>
-                      <h2>Render Load History</h2>
-                      <p>Live Load Curves Across Active Devices</p>
-                    </div>
-                    <span className="nerve-live-chip">
-                      <i aria-hidden="true" />
-                      Live Tracking
-                    </span>
-                  </header>
-                  {chartSeries.length === 0 ? (
-                    <div className="nr-chart-empty">
-                      <Activity size={18} />
-                      <p>No history samples yet — curves appear as telemetry streams in.</p>
-                    </div>
-                  ) : (
-                    <>
-                      <div className="nerve-chart">
-                        <div className="nerve-chart-y" aria-hidden="true">
-                          {["100", "75", "50", "25", "0"].map((label) => (
-                            <span key={label}>{label}</span>
-                          ))}
-                        </div>
-                        <div className="nerve-chart-plot">
-                          <svg
-                            viewBox="0 0 560 200"
-                            preserveAspectRatio="none"
-                            role="img"
-                            aria-label="GPU utilization over time"
-                          >
-                            {[0, 50, 100, 150, 200].map((y) => (
-                              <line
-                                key={y}
-                                x1="0"
-                                x2="560"
-                                y1={y}
-                                y2={y}
-                                stroke="var(--studio-border)"
-                                strokeWidth="1"
-                                vectorEffect="non-scaling-stroke"
-                              />
-                            ))}
-                            {chartSeries.map((series) => (
-                              <polyline
-                                key={series.key}
-                                points={series.points}
-                                fill="none"
-                                stroke={series.color}
-                                strokeWidth="2"
-                                strokeLinejoin="round"
-                                strokeLinecap="round"
-                                vectorEffect="non-scaling-stroke"
-                              />
-                            ))}
-                          </svg>
-                        </div>
-                      </div>
-                      <div className="nerve-chart-legend">
-                        {chartSeries.map((series) => (
-                          <span className="nerve-legend-chip" key={series.key}>
-                            <i style={{ background: series.color }} />
-                            <span>{series.label}</span>
-                            <b>{series.latest}%</b>
-                          </span>
-                        ))}
-                      </div>
-                    </>
-                  )}
-                </section>
-
-                <section className="nr-card" aria-label="Render nodes">
-                  <header className="nr-card-head">
-                    <div>
-                      <h2>Render nodes</h2>
-                      <p>Cluster Health Monitoring</p>
-                    </div>
-                  </header>
-                  {workers.length === 0 ? (
-                    <div className="nr-empty">
-                      <Server size={18} />
-                      <strong>No workers registered</strong>
-                      <p>The coordinator is online but has no render workers configured yet.</p>
-                    </div>
-                  ) : (
-                    <div className="nerve-node-list">
-                      {sortedWorkers.map((worker, i) => {
-                        const live = liveWorkerGpu.get(worker.worker_id ?? "");
-                        const online = live?.online ?? Boolean(worker.online);
-                        const devices = online ? (live?.gpus ?? worker.identity?.gpu_stats ?? []) : [];
-                        const names = devices.length
-                          ? devices.map((gpu) => gpu.name ?? "GPU")
-                          : online
-                            ? (worker.identity?.gpu_devices ?? []).map((gpu) => gpu.split(",")[0])
-                            : [];
-                        const kind = [...new Set(names)].join(", ") || (online ? "GPU unavailable" : "offline");
-                        const used = devices.reduce((sum, gpu) => sum + (gpu.memory_used_mib ?? 0), 0);
-                        const total = devices.reduce((sum, gpu) => sum + (gpu.memory_total_mib ?? 0), 0);
-                        const nodePct = total > 0 ? Math.round((used / total) * 100) : 0;
-                        const nodeTone = nodePct >= 90 ? "is-hot" : nodePct >= 70 ? "is-warm" : "";
-                        return (
-                          <div className="nerve-node-row" key={worker.worker_id ?? i}>
-                            <div className="nerve-node-top">
-                              <span className={`nerve-node-dot${online ? " is-online" : ""}`} aria-hidden="true" />
-                              <span className="nerve-node-name">
-                                {worker.name ?? worker.identity?.hostname ?? worker.worker_id ?? `Worker ${i + 1}`}
-                                <small>{kind}</small>
-                              </span>
-                              <span className="nerve-node-alloc">
-                                {total > 0 ? `${nodePct}% GPU Allocation` : online ? "No VRAM data" : "Offline"}
-                              </span>
                             </div>
-                            <div
-                              className="nerve-node-track"
-                              role="meter"
-                              aria-label={`${worker.name ?? worker.worker_id ?? `Worker ${i + 1}`} GPU allocation`}
-                              aria-valuemin={0}
-                              aria-valuemax={100}
-                              aria-valuenow={nodePct}
-                            >
-                              <div className={`nerve-node-fill ${nodeTone}`} style={{ width: `${nodePct}%` }} />
+                            <div className="nerve-donut-legend">
+                              {gpus.map((gpu, index) => (
+                                <span className="nerve-legend-chip" key={gpuCardIdentity(gpu, index)}>
+                                  <i style={{ background: SERIES_COLORS[index % SERIES_COLORS.length] }} />
+                                  <span>{shortGpuName(gpu)}</span>
+                                </span>
+                              ))}
                             </div>
                           </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </section>
-              </div>
-
-              <div className={`nerve-cards-row is-row-three${hasPreview ? "" : " is-single"}`}>
-                <section className="nr-card" aria-label="Render activity">
-                  <header className="nr-card-head">
-                    <div>
-                      <h2>Render activity</h2>
-                      <p>{backendReady ? "Current job and recent queue" : "Connect to load the render queue"}</p>
-                    </div>
-                    <span className="nr-card-count">{backendReady ? `${queuedJobs.length} recent` : "—"}</span>
-                  </header>
-                  {currentJob ? (
-                    <div className="nr-render">
-                      <div className="nr-render-status">
-                        <span className="nr-pulse" aria-hidden="true" />
-                        {currentJob.status === "paused" ? "Paused" : "Rendering now"}
-                        <span>{currentJob.id ?? currentJob.job_id ?? "ACTIVE JOB"}</span>
-                      </div>
-                      <div className="nr-render-title">{shortName(currentJob.project_path)}</div>
-                      <div className="nr-render-bar">
-                        <div style={{ width: `${currentProgress ?? 0}%` }} />
-                      </div>
-                      <div className="nr-render-meta">
-                        <span>
-                          Frames {currentJob.frame_start ?? "?"} — {currentJob.frame_end ?? "?"} ·{" "}
-                          {currentProgress === null ? "—" : `${currentProgress}%`}
-                        </span>
-                        <span>{cadence === "manual" ? "Manual refresh" : `Updates every ${cadence}s`}</span>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="nr-empty">
-                      <Film size={18} />
-                      <strong>{backendReady ? "No render in progress" : "Connect to load render queue"}</strong>
-                      <p>
-                        {backendReady
-                          ? "Submit a farm job to track its progress."
-                          : "Farm and job data comes from the authenticated coordinator."}
-                      </p>
-                    </div>
-                  )}
-                  {backendReady && (
-                    <div className="nr-queue-chips">
-                      {[
-                        { label: "Active", value: activeJobs.length, cls: "is-active" },
-                        { label: "Queued", value: queuedJobs.filter((job) => job.status === "queued").length, cls: "" },
-                        { label: "Failed", value: failedJobs.length, cls: "is-failed" },
-                        { label: "Done", value: completedJobCount, cls: "is-done" },
-                      ].map(({ label, value, cls }) => (
-                        <div className={`nr-queue-chip ${cls}`} key={label}>
-                          <strong>{value}</strong>
-                          <span>{label}</span>
+                          <div className="nerve-alloc-list">
+                            {gpus.map((gpu, index) => {
+                              const used = gpu.memory_used_mib ?? 0;
+                              const total = gpu.memory_total_mib ?? 0;
+                              const pct = total > 0 ? Math.max(0, Math.min(100, (used / total) * 100)) : 0;
+                              return (
+                                <div className="nerve-alloc-row" key={gpuCardIdentity(gpu, index)}>
+                                  <div className="nerve-alloc-top">
+                                    <span className="nerve-alloc-name">
+                                      {shortGpuName(gpu)}
+                                      <small>{gpu.worker_id ?? "Coordinator"}</small>
+                                    </span>
+                                    <span className="nerve-alloc-val">
+                                      {total > 0 ? `${formatMib(used)} / ${formatMib(total)} GB` : "—"}
+                                    </span>
+                                  </div>
+                                  <div
+                                    className="nerve-alloc-track"
+                                    role="meter"
+                                    aria-label={`${gpu.name ?? `GPU ${index + 1}`} VRAM`}
+                                    aria-valuemin={0}
+                                    aria-valuemax={100}
+                                    aria-valuenow={Math.round(pct)}
+                                  >
+                                    <div
+                                      className="nerve-alloc-fill"
+                                      style={{
+                                        width: `${pct}%`,
+                                        background: SERIES_COLORS[index % SERIES_COLORS.length],
+                                      }}
+                                    />
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
                         </div>
-                      ))}
-                    </div>
-                  )}
-                </section>
+                        <div className="nerve-alloc-footer">
+                          <span className="nerve-alloc-footer-icon">
+                            <Zap size={14} aria-hidden="true" />
+                          </span>
+                          <div className="nerve-alloc-footer-copy">
+                            <strong>Smart Resource Balancing</strong>
+                            <p>
+                              Auto routing load from {idleWorkerName ?? "idle nodes"} to{" "}
+                              {busiestWorkerName ?? "active nodes"}.
+                            </p>
+                          </div>
+                          <span className="nerve-pill">System Optimized</span>
+                        </div>
+                      </>
+                    )}
+                  </section>
 
-                {hasPreview && (
-                  <section
-                    className="nr-card"
-                    aria-label="Latest render output"
-                    onClick={() => (latestOpenFile ? openFileInGallery(latestOpenFile) : setScreen("Gallery"))}
-                  >
+                  <section className="nr-card" id="studio-alerts-card" aria-label="Realtime alerts and events">
                     <header className="nr-card-head">
                       <div>
-                        <h2>Latest output</h2>
-                        <p>{latestMedia?.name ?? "Workspace render preview"}</p>
+                        <h2>Realtime alerts &amp; events</h2>
+                        <p>Live System Events And Anomaly Feed</p>
                       </div>
-                      <span className="nr-card-count">Available</span>
                     </header>
-                    <div className="preview-stage">
-                      {latestMedia?.type === "video" ? (
-                        // biome-ignore lint/a11y/useMediaCaption: workspace renders have no caption sidecars.
-                        <video controls src={latestBlobUrl ?? undefined} className="preview-media" />
-                      ) : (
-                        <img src={latestBlobUrl ?? undefined} alt={latestMedia?.name ?? "Latest render preview"} />
-                      )}
+                    <div className="nerve-alert-list">
+                      {visibleAlerts.slice(0, 5).map((entry) => (
+                        <StudioAlertRow key={entry.id} entry={entry} showMeta={false} />
+                      ))}
                     </div>
-                    <div className="preview-meta">
+                    <div className="nr-card-foot">
                       <span>
-                        <HardDrive size={13} /> {latestMedia?.name ?? "WORKSPACE PREVIEW"}
+                        Last Incident :{" "}
+                        {failedJobs.length + offlineWorkers.length > 0
+                          ? `${failedJobs.length + offlineWorkers.length} in this session`
+                          : "none in this session"}
                       </span>
-                      <button type="button" onClick={() => setScreen("Gallery")}>
-                        View gallery <ArrowUpRight size={13} />
+                      <button type="button" onClick={openEventLog}>
+                        View all events <ArrowUpRight size={12} />
                       </button>
                     </div>
                   </section>
-                )}
-              </div>
+                </div>
 
-              </div>{/* end hidden legacy cards */}
+                <div className="nerve-cards-row is-row-two">
+                  <section className="nr-card" aria-label="GPU gateway heatmap">
+                    <header className="nr-card-head">
+                      <div>
+                        <h2>GPU Gateway Heatmap</h2>
+                        <p>Per Device Utilization Intensity Analysis</p>
+                      </div>
+                    </header>
+                    {gpus.length === 0 ? (
+                      <div className="nr-empty">
+                        <Cpu size={18} />
+                        <strong>No GPU telemetry</strong>
+                        <p>Coordinator GPU probes and online worker telemetry populate this grid.</p>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="nerve-heatmap">
+                          {gpus.map((gpu, index) => {
+                            const util = gpu.utilization_percent ?? 0;
+                            const bucket =
+                              util >= 90
+                                ? "is-l90"
+                                : util >= 75
+                                  ? "is-l75"
+                                  : util >= 50
+                                    ? "is-l50"
+                                    : util >= 20
+                                      ? "is-l20"
+                                      : "is-l0";
+                            return (
+                              <span
+                                className={`nerve-heat-cell ${bucket}`}
+                                key={gpuCardIdentity(gpu, index)}
+                                title={`${shortGpuName(gpu)} — ${util}% · ${gpu.temperature_c ?? "—"}°C`}
+                              />
+                            );
+                          })}
+                        </div>
+                        <div className="nerve-heat-legend">
+                          {[
+                            { label: "0–19%", tone: "is-l0" },
+                            { label: "20–49%", tone: "is-l20" },
+                            { label: "50–74%", tone: "is-l50" },
+                            { label: "75–89%", tone: "is-l75" },
+                            { label: "90%+", tone: "is-l90" },
+                          ].map(({ label, tone }) => (
+                            <span className="nerve-heat-key" key={label}>
+                              <i className={tone} />
+                              {label}
+                            </span>
+                          ))}
+                        </div>
+                        <div className="nerve-heat-stats">
+                          <span>
+                            Peak load
+                            <b>{Math.round(Math.max(...gpus.map((gpu) => gpu.utilization_percent ?? 0)))}%</b>
+                          </span>
+                          <span>
+                            Hottest
+                            <b>
+                              {gpus.some((gpu) => typeof gpu.temperature_c === "number")
+                                ? `${Math.round(Math.max(...gpus.map((gpu) => gpu.temperature_c ?? 0)))}°C`
+                                : "—"}
+                            </b>
+                          </span>
+                          <span>
+                            Idle devices
+                            <b>{gpus.filter((gpu) => (gpu.utilization_percent ?? 0) < 20).length}</b>
+                          </span>
+                        </div>
+                      </>
+                    )}
+                  </section>
+
+                  <section className="nr-card" aria-label="Render load history">
+                    <header className="nr-card-head">
+                      <div>
+                        <h2>Render Load History</h2>
+                        <p>Live Load Curves Across Active Devices</p>
+                      </div>
+                      <span className="nerve-live-chip">
+                        <i aria-hidden="true" />
+                        Live Tracking
+                      </span>
+                    </header>
+                    {chartSeries.length === 0 ? (
+                      <div className="nr-chart-empty">
+                        <Activity size={18} />
+                        <p>No history samples yet — curves appear as telemetry streams in.</p>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="nerve-chart">
+                          <div className="nerve-chart-y" aria-hidden="true">
+                            {["100", "75", "50", "25", "0"].map((label) => (
+                              <span key={label}>{label}</span>
+                            ))}
+                          </div>
+                          <div className="nerve-chart-plot">
+                            <svg
+                              viewBox="0 0 560 200"
+                              preserveAspectRatio="none"
+                              role="img"
+                              aria-label="GPU utilization over time"
+                            >
+                              {[0, 50, 100, 150, 200].map((y) => (
+                                <line
+                                  key={y}
+                                  x1="0"
+                                  x2="560"
+                                  y1={y}
+                                  y2={y}
+                                  stroke="var(--studio-border)"
+                                  strokeWidth="1"
+                                  vectorEffect="non-scaling-stroke"
+                                />
+                              ))}
+                              {chartSeries.map((series) => (
+                                <polyline
+                                  key={series.key}
+                                  points={series.points}
+                                  fill="none"
+                                  stroke={series.color}
+                                  strokeWidth="2"
+                                  strokeLinejoin="round"
+                                  strokeLinecap="round"
+                                  vectorEffect="non-scaling-stroke"
+                                />
+                              ))}
+                            </svg>
+                          </div>
+                        </div>
+                        <div className="nerve-chart-legend">
+                          {chartSeries.map((series) => (
+                            <span className="nerve-legend-chip" key={series.key}>
+                              <i style={{ background: series.color }} />
+                              <span>{series.label}</span>
+                              <b>{series.latest}%</b>
+                            </span>
+                          ))}
+                        </div>
+                      </>
+                    )}
+                  </section>
+
+                  <section className="nr-card" aria-label="Render nodes">
+                    <header className="nr-card-head">
+                      <div>
+                        <h2>Render nodes</h2>
+                        <p>Cluster Health Monitoring</p>
+                      </div>
+                    </header>
+                    {workers.length === 0 ? (
+                      <div className="nr-empty">
+                        <Server size={18} />
+                        <strong>No workers registered</strong>
+                        <p>The coordinator is online but has no render workers configured yet.</p>
+                      </div>
+                    ) : (
+                      <div className="nerve-node-list">
+                        {sortedWorkers.map((worker, i) => {
+                          const live = liveWorkerGpu.get(worker.worker_id ?? "");
+                          const online = live?.online ?? Boolean(worker.online);
+                          const devices = online ? (live?.gpus ?? worker.identity?.gpu_stats ?? []) : [];
+                          const names = devices.length
+                            ? devices.map((gpu) => gpu.name ?? "GPU")
+                            : online
+                              ? (worker.identity?.gpu_devices ?? []).map((gpu) => gpu.split(",")[0])
+                              : [];
+                          const kind = [...new Set(names)].join(", ") || (online ? "GPU unavailable" : "offline");
+                          const used = devices.reduce((sum, gpu) => sum + (gpu.memory_used_mib ?? 0), 0);
+                          const total = devices.reduce((sum, gpu) => sum + (gpu.memory_total_mib ?? 0), 0);
+                          const nodePct = total > 0 ? Math.round((used / total) * 100) : 0;
+                          const nodeTone = nodePct >= 90 ? "is-hot" : nodePct >= 70 ? "is-warm" : "";
+                          return (
+                            <div className="nerve-node-row" key={worker.worker_id ?? i}>
+                              <div className="nerve-node-top">
+                                <span className={`nerve-node-dot${online ? " is-online" : ""}`} aria-hidden="true" />
+                                <span className="nerve-node-name">
+                                  {worker.name ?? worker.identity?.hostname ?? worker.worker_id ?? `Worker ${i + 1}`}
+                                  <small>{kind}</small>
+                                </span>
+                                <span className="nerve-node-alloc">
+                                  {total > 0 ? `${nodePct}% GPU Allocation` : online ? "No VRAM data" : "Offline"}
+                                </span>
+                              </div>
+                              <div
+                                className="nerve-node-track"
+                                role="meter"
+                                aria-label={`${worker.name ?? worker.worker_id ?? `Worker ${i + 1}`} GPU allocation`}
+                                aria-valuemin={0}
+                                aria-valuemax={100}
+                                aria-valuenow={nodePct}
+                              >
+                                <div className={`nerve-node-fill ${nodeTone}`} style={{ width: `${nodePct}%` }} />
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </section>
+                </div>
+
+                <div className={`nerve-cards-row is-row-three${hasPreview ? "" : " is-single"}`}>
+                  <section className="nr-card" aria-label="Render activity">
+                    <header className="nr-card-head">
+                      <div>
+                        <h2>Render activity</h2>
+                        <p>{backendReady ? "Current job and recent queue" : "Connect to load the render queue"}</p>
+                      </div>
+                      <span className="nr-card-count">{backendReady ? `${queuedJobs.length} recent` : "—"}</span>
+                    </header>
+                    {currentJob ? (
+                      <div className="nr-render">
+                        <div className="nr-render-status">
+                          <span className="nr-pulse" aria-hidden="true" />
+                          {currentJob.status === "paused" ? "Paused" : "Rendering now"}
+                          <span>{currentJob.id ?? currentJob.job_id ?? "ACTIVE JOB"}</span>
+                        </div>
+                        <div className="nr-render-title">{shortName(currentJob.project_path)}</div>
+                        <div className="nr-render-bar">
+                          <div style={{ width: `${currentProgress ?? 0}%` }} />
+                        </div>
+                        <div className="nr-render-meta">
+                          <span>
+                            Frames {currentJob.frame_start ?? "?"} — {currentJob.frame_end ?? "?"} ·{" "}
+                            {currentProgress === null ? "—" : `${currentProgress}%`}
+                          </span>
+                          <span>{cadence === "manual" ? "Manual refresh" : `Updates every ${cadence}s`}</span>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="nr-empty">
+                        <Film size={18} />
+                        <strong>{backendReady ? "No render in progress" : "Connect to load render queue"}</strong>
+                        <p>
+                          {backendReady
+                            ? "Submit a farm job to track its progress."
+                            : "Farm and job data comes from the authenticated coordinator."}
+                        </p>
+                      </div>
+                    )}
+                    {backendReady && (
+                      <div className="nr-queue-chips">
+                        {[
+                          { label: "Active", value: activeJobs.length, cls: "is-active" },
+                          {
+                            label: "Queued",
+                            value: queuedJobs.filter((job) => job.status === "queued").length,
+                            cls: "",
+                          },
+                          { label: "Failed", value: failedJobs.length, cls: "is-failed" },
+                          { label: "Done", value: completedJobCount, cls: "is-done" },
+                        ].map(({ label, value, cls }) => (
+                          <div className={`nr-queue-chip ${cls}`} key={label}>
+                            <strong>{value}</strong>
+                            <span>{label}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </section>
+
+                  {hasPreview && (
+                    <section
+                      className="nr-card"
+                      aria-label="Latest render output"
+                      onClick={() => (latestOpenFile ? openFileInGallery(latestOpenFile) : setScreen("Gallery"))}
+                    >
+                      <header className="nr-card-head">
+                        <div>
+                          <h2>Latest output</h2>
+                          <p>{latestMedia?.name ?? "Workspace render preview"}</p>
+                        </div>
+                        <span className="nr-card-count">Available</span>
+                      </header>
+                      <div className="preview-stage">
+                        {latestMedia?.type === "video" ? (
+                          // biome-ignore lint/a11y/useMediaCaption: workspace renders have no caption sidecars.
+                          <video controls src={latestBlobUrl ?? undefined} className="preview-media" />
+                        ) : (
+                          <img src={latestBlobUrl ?? undefined} alt={latestMedia?.name ?? "Latest render preview"} />
+                        )}
+                      </div>
+                      <div className="preview-meta">
+                        <span>
+                          <HardDrive size={13} /> {latestMedia?.name ?? "WORKSPACE PREVIEW"}
+                        </span>
+                        <button type="button" onClick={() => setScreen("Gallery")}>
+                          View gallery <ArrowUpRight size={13} />
+                        </button>
+                      </div>
+                    </section>
+                  )}
+                </div>
+              </div>
+              {/* end hidden legacy cards */}
 
               <footer className="studio-footer nr-footer">
                 <span>
@@ -2910,7 +3078,9 @@ export default function StudioDashboard() {
               </footer>
             </>
           ) : screen === "Jobs" ? (
-            <StudioJobs key={apiKey ? "connected" : "disconnected"} />
+            <Suspense fallback={screenFallback}>
+              <StudioJobs key={apiKey ? "connected" : "disconnected"} />
+            </Suspense>
           ) : screen === "Monitoring" ? (
             <MonitoringScreen
               diagnostics={diagnostics}
@@ -2928,41 +3098,46 @@ export default function StudioDashboard() {
               farmGpuHistory={farmGpuHistory}
             />
           ) : screen === "Settings" ? (
-            <SettingsScreen
-              cadence={cadence}
-              onCadenceChange={changeCadence}
-              storageError={storageError}
-              health={health}
-              diagnostics={diagnostics}
-              authReady={authReady}
-              authError={authError}
-              onConnect={() => setShowConnect(true)}
-              onDisconnect={disconnect}
-              onRefresh={() => void refresh()}
-              refreshing={refreshing}
-              onNavigate={setScreen}
-              dashboardSession={dashboardSession}
-              onSignOut={() => void signOut()}
-              signingOut={signingOut}
-              signOutError={signOutError}
-              notificationPrefs={notificationPrefs}
-              onNotificationPrefsChange={changeNotificationPrefs}
-              notificationsSaveError={notificationsSaveError}
-              eventLog={eventLog}
-              onClearEvents={clearEvents}
-            />
+            <Suspense fallback={screenFallback}>
+              <SettingsScreen
+                cadence={cadence}
+                onCadenceChange={changeCadence}
+                storageError={storageError}
+                health={health}
+                diagnostics={diagnostics}
+                authReady={authReady}
+                authError={authError}
+                onConnect={() => setShowConnect(true)}
+                onDisconnect={disconnect}
+                onRefresh={() => void refresh()}
+                refreshing={refreshing}
+                onNavigate={setScreen}
+                dashboardSession={dashboardSession}
+                onSignOut={() => void signOut()}
+                signingOut={signingOut}
+                signOutError={signOutError}
+                notificationPrefs={notificationPrefs}
+                onNotificationPrefsChange={changeNotificationPrefs}
+                notificationsSaveError={notificationsSaveError}
+                eventLog={eventLog}
+                onClearEvents={clearEvents}
+              />
+            </Suspense>
           ) : (
-            <StudioScreens
-              screen={screen}
-              workerView={workerView}
-              onWorkerViewChange={setWorkerView}
-              openFile={openFile}
-              onOpenFileHandled={handleOpenFileHandled}
-            />
+            <Suspense fallback={screenFallback}>
+              <StudioScreens
+                screen={screen}
+                workerView={workerView}
+                onWorkerViewChange={setWorkerView}
+                openFile={openFile}
+                onOpenFileHandled={handleOpenFileHandled}
+              />
+            </Suspense>
           )}
         </div>
       </main>
 
+      {paletteOpen && <CommandPalette commands={paletteCommands} onClose={() => setPaletteOpen(false)} />}
       {showConnect && (
         <div
           className="modal-backdrop"
@@ -2971,7 +3146,13 @@ export default function StudioDashboard() {
             if (event.target === event.currentTarget) setShowConnect(false);
           }}
         >
-          <section className="connect-modal" role="dialog" aria-modal="true" aria-labelledby="connect-title">
+          <section
+            ref={connectDialog}
+            className="connect-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="connect-title"
+          >
             <button type="button" className="modal-close" aria-label="Close" onClick={() => setShowConnect(false)}>
               <X size={17} />
             </button>

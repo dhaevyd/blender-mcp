@@ -930,7 +930,10 @@ export default function StudioWorkers({
                           </div>
                         )}
                         {logsWorkerId === worker.worker_id && (
-                          <section className="worker-logs" aria-label={`Live logs for ${worker.name ?? worker.worker_id}`}>
+                          <section
+                            className="worker-logs"
+                            aria-label={`Live logs for ${worker.name ?? worker.worker_id}`}
+                          >
                             <div className="worker-logs-head">
                               <span className="page-kicker">Live node logs{logsLoading ? " · updating" : ""}</span>
                               <label className="page-field">
@@ -956,7 +959,10 @@ export default function StudioWorkers({
                             ) : (
                               <pre className="worker-logs-body">
                                 {logLines.map((line, i) => (
-                                  <span className={`worker-log-line is-${line.level.toLowerCase()}`} key={`${line.timestamp}-${i}`}>
+                                  <span
+                                    className={`worker-log-line is-${line.level.toLowerCase()}`}
+                                    key={`${line.timestamp}-${i}`}
+                                  >
                                     {`${new Date(line.timestamp).toLocaleTimeString()} ${line.level.padEnd(8)} ${line.message}\n`}
                                   </span>
                                 ))}

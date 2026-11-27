@@ -1,5 +1,7 @@
-import { type FormEvent, useEffect, useState } from "react";
+import { type FormEvent, useEffect, useRef, useState } from "react";
 import { dashboardAuthHeaders } from "../api/dashboardAuth";
+import { useDialogFocus } from "./use-dialog-focus";
+
 /* farm.css loaded by studio-dashboard.tsx */
 
 type Frame = {
@@ -57,13 +59,7 @@ function progressOf(job: Job): number {
 
 const AlertIcon = () => (
   <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" focusable="false">
-    <path
-      d="M8 2.2 14 13H2L8 2.2Z"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.2"
-      strokeLinejoin="round"
-    />
+    <path d="M8 2.2 14 13H2L8 2.2Z" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
     <path d="M8 6.4v3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
     <circle cx="8" cy="11.2" r="0.7" fill="currentColor" />
   </svg>
@@ -84,6 +80,8 @@ export default function StudioJobs() {
   const [projectPath, setProjectPath] = useState("");
   const [frameStart, setFrameStart] = useState(1);
   const [frameEnd, setFrameEnd] = useState(1);
+  const submitDialog = useRef<HTMLFormElement>(null);
+  useDialogFocus(submitDialog, selected === "__submit__");
   useEffect(() => {
     if (!selected) return;
     const onKey = (event: KeyboardEvent) => {
@@ -278,11 +276,7 @@ export default function StudioJobs() {
         </div>
         <div className="page-actions">
           {canSubmit && (
-            <button
-              type="button"
-              className="page-btn is-primary"
-              onClick={() => setSelected("__submit__")}
-            >
+            <button type="button" className="page-btn is-primary" onClick={() => setSelected("__submit__")}>
               + Submit job
             </button>
           )}
@@ -361,6 +355,10 @@ export default function StudioJobs() {
       {selected === "__submit__" && canSubmit && (
         <div className="jobs-modal-backdrop" onClick={() => setSelected("")}>
           <form
+            ref={submitDialog}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Submit a render"
             className="nr-card jobs-submit-modal"
             onSubmit={(event) => void submit(event)}
             onClick={(e) => e.stopPropagation()}
@@ -370,7 +368,9 @@ export default function StudioJobs() {
                 <h2>Submit a render</h2>
                 <p>Choose a .blend or .zip file inside the coordinator workspace and a frame range.</p>
               </div>
-              <button type="button" className="jobs-modal-close" onClick={() => setSelected("")} aria-label="Close">×</button>
+              <button type="button" className="jobs-modal-close" onClick={() => setSelected("")} aria-label="Close">
+                ×
+              </button>
             </div>
             <div className="studio-job-fields">
               <label className="page-field">
@@ -411,15 +411,13 @@ export default function StudioJobs() {
               </div>
             </div>
             <div className="page-form-actions">
-              <button
-                type="submit"
-                className="page-btn is-primary"
-                disabled={busy || !loaded || frameEnd < frameStart}
-              >
+              <button type="submit" className="page-btn is-primary" disabled={busy || !loaded || frameEnd < frameStart}>
                 {busy ? "Submitting…" : "Submit to farm"}
               </button>
               <span className="page-muted">
-                {frameEnd < frameStart ? "Last frame must be ≥ first frame." : "Queued jobs start as soon as a GPU is free."}
+                {frameEnd < frameStart
+                  ? "Last frame must be ≥ first frame."
+                  : "Queued jobs start as soon as a GPU is free."}
               </span>
             </div>
           </form>
@@ -461,10 +459,19 @@ export default function StudioJobs() {
                   <button
                     type="button"
                     className="jobs-row-project"
-                    onClick={() => { setSelected(isSelected ? "" : item.id); setPage(0); setMessage(""); }}
+                    onClick={() => {
+                      setSelected(isSelected ? "" : item.id);
+                      setPage(0);
+                      setMessage("");
+                    }}
                   >
-                    <span className="page-table-cell-strong" title={item.project_path}>{item.project_path.split(/[\\/]/).pop() || item.project_path}</span>
-                    <span className={`page-chip ${tone(item.status)}`}><i />{item.status}</span>
+                    <span className="page-table-cell-strong" title={item.project_path}>
+                      {item.project_path.split(/[\\/]/).pop() || item.project_path}
+                    </span>
+                    <span className={`page-chip ${tone(item.status)}`}>
+                      <i />
+                      {item.status}
+                    </span>
                   </button>
                   <span className="page-table-cell-muted">
                     {item.completed}/{item.total_frames}
@@ -480,20 +487,56 @@ export default function StudioJobs() {
                   <span className="page-table-cell-muted">—</span>
                   <span className="jobs-actions-cell">
                     {role !== "viewer" && role && item.status === "running" && (
-                      <button type="button" className="page-btn is-sm" disabled={busy && selected === item.id}
-                        onClick={() => { setSelected(item.id); void act("pause"); }}>Pause</button>
+                      <button
+                        type="button"
+                        className="page-btn is-sm"
+                        disabled={busy && selected === item.id}
+                        onClick={() => {
+                          setSelected(item.id);
+                          void act("pause");
+                        }}
+                      >
+                        Pause
+                      </button>
                     )}
                     {role !== "viewer" && role && item.status === "paused" && (
-                      <button type="button" className="page-btn is-sm" disabled={busy && selected === item.id}
-                        onClick={() => { setSelected(item.id); void act("resume"); }}>Resume</button>
+                      <button
+                        type="button"
+                        className="page-btn is-sm"
+                        disabled={busy && selected === item.id}
+                        onClick={() => {
+                          setSelected(item.id);
+                          void act("resume");
+                        }}
+                      >
+                        Resume
+                      </button>
                     )}
                     {role !== "viewer" && role && item.status === "failed" && item.failed > 0 && (
-                      <button type="button" className="page-btn is-sm" disabled={busy && selected === item.id}
-                        onClick={() => { setSelected(item.id); void act("retry_failed"); }}>Retry</button>
+                      <button
+                        type="button"
+                        className="page-btn is-sm"
+                        disabled={busy && selected === item.id}
+                        onClick={() => {
+                          setSelected(item.id);
+                          void act("retry_failed");
+                        }}
+                      >
+                        Retry
+                      </button>
                     )}
                     {role !== "viewer" && role && ["running", "paused"].includes(item.status) && (
-                      <button type="button" className="page-btn is-sm is-danger" disabled={busy && selected === item.id}
-                        onClick={() => { setSelected(item.id); void act("cancel"); }}>Cancel</button>
+                      <button
+                        type="button"
+                        className="page-btn is-sm is-danger"
+                        disabled={busy && selected === item.id}
+                        onClick={() => {
+                          setSelected(item.id);
+                          void act("cancel");
+                        }}
+                      >
+                        Cancel
+                      </button>
                     )}
                   </span>
                 </div>
@@ -509,9 +552,18 @@ export default function StudioJobs() {
               <div>
                 <span className="page-kicker">Job detail</span>
                 <strong className="jobs-detail-path">{detail.project_path}</strong>
-                <span className="page-muted">{detail.completed}/{detail.total_frames} frames · {detail.failed} failed</span>
+                <span className="page-muted">
+                  {detail.completed}/{detail.total_frames} frames · {detail.failed} failed
+                </span>
               </div>
-              <button type="button" className="jobs-modal-close" onClick={() => setSelected("")} aria-label="Close detail">×</button>
+              <button
+                type="button"
+                className="jobs-modal-close"
+                onClick={() => setSelected("")}
+                aria-label="Close detail"
+              >
+                ×
+              </button>
             </div>
             <div className="jobs-detail-progress">
               <div
@@ -529,8 +581,14 @@ export default function StudioJobs() {
             {detail.status === "running" && detail.wait_reason && (
               <p className="page-note is-warn">{detail.wait_reason}</p>
             )}
-            {message && <p className="page-note" role="status">{message}</p>}
-            <div className="page-kicker" style={{ marginTop: "16px" }}>Frames and outputs</div>
+            {message && (
+              <p className="page-note" role="status">
+                {message}
+              </p>
+            )}
+            <div className="page-kicker" style={{ marginTop: "16px" }}>
+              Frames and outputs
+            </div>
             <div className="page-table studio-frame-table">
               <div className="page-table-head studio-frame-row" aria-hidden="true">
                 <span>Frame</span>
@@ -541,25 +599,54 @@ export default function StudioJobs() {
               {frames.slice(page * 50, (page + 1) * 50).map((frame) => (
                 <div key={frame.frame} className="page-table-row studio-frame-row">
                   <span className="page-table-cell-strong">{frame.frame}</span>
-                  <span className={`page-chip ${tone(frame.status)}`}><i />{frame.status}</span>
+                  <span className={`page-chip ${tone(frame.status)}`}>
+                    <i />
+                    {frame.status}
+                  </span>
                   <span className="studio-frame-worker">
                     {frame.worker_id ?? "—"}
-                    {frame.gpu_name ? ` / ${frame.gpu_name}${frame.gpu_index == null ? "" : ` #${frame.gpu_index}`}` : ""}
+                    {frame.gpu_name
+                      ? ` / ${frame.gpu_name}${frame.gpu_index == null ? "" : ` #${frame.gpu_index}`}`
+                      : ""}
                   </span>
                   <span className="studio-frame-out">
                     {frame.status === "completed" && frame.output_path ? (
-                      <button type="button" className="page-btn is-sm" aria-label={`Download frame ${frame.frame}`}
-                        onClick={() => void download(frame)}>Download</button>
-                    ) : (frame.error ?? "—")}
+                      <button
+                        type="button"
+                        className="page-btn is-sm"
+                        aria-label={`Download frame ${frame.frame}`}
+                        onClick={() => void download(frame)}
+                      >
+                        Download
+                      </button>
+                    ) : (
+                      (frame.error ?? "—")
+                    )}
                   </span>
                 </div>
               ))}
             </div>
             {frames.length > 50 && (
               <div className="studio-jobs-actions studio-jobs-pager">
-                <button type="button" className="page-btn is-sm" disabled={page === 0} onClick={() => setPage(page - 1)}>Previous</button>
-                <span className="page-muted">Page {page + 1} of {Math.ceil(frames.length / 50)}</span>
-                <button type="button" className="page-btn is-sm" disabled={(page + 1) * 50 >= frames.length} onClick={() => setPage(page + 1)}>Next</button>
+                <button
+                  type="button"
+                  className="page-btn is-sm"
+                  disabled={page === 0}
+                  onClick={() => setPage(page - 1)}
+                >
+                  Previous
+                </button>
+                <span className="page-muted">
+                  Page {page + 1} of {Math.ceil(frames.length / 50)}
+                </span>
+                <button
+                  type="button"
+                  className="page-btn is-sm"
+                  disabled={(page + 1) * 50 >= frames.length}
+                  onClick={() => setPage(page + 1)}
+                >
+                  Next
+                </button>
               </div>
             )}
           </div>
@@ -575,13 +662,18 @@ export default function StudioJobs() {
       {operations?.alerts && operations.alerts.length > 0 && (
         <section className="nr-card">
           <div className="nr-card-head">
-            <div><h2>Farm alerts</h2><p>Worker and queue anomalies from the coordinator.</p></div>
+            <div>
+              <h2>Farm alerts</h2>
+              <p>Worker and queue anomalies from the coordinator.</p>
+            </div>
             <span className="nr-card-count">{operations.alerts.length} open</span>
           </div>
           <div className="page-list">
             {operations.alerts.map((alert) => (
               <div className="page-list-row studio-jobs-alert" key={alert}>
-                <span className="studio-jobs-alert-icon"><AlertIcon /></span>
+                <span className="studio-jobs-alert-icon">
+                  <AlertIcon />
+                </span>
                 <span className="studio-jobs-alert-text">{alert}</span>
               </div>
             ))}

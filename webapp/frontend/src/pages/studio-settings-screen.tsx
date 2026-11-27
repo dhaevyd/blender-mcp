@@ -1,13 +1,4 @@
-import {
-  Activity,
-  ArrowUpRight,
-  ChevronRight,
-  HardDrive,
-  LockKeyhole,
-  LogOut,
-  RefreshCw,
-  Server,
-} from "lucide-react";
+import { Activity, ArrowUpRight, ChevronRight, HardDrive, LockKeyhole, LogOut, RefreshCw, Server } from "lucide-react";
 import { useEffect, useState } from "react";
 import { dashboardAuthHeaders } from "../api/dashboardAuth";
 import type { NotificationLogEntry } from "../common/notificationLog";
@@ -273,326 +264,349 @@ export default function SettingsScreen({
           ))}
         </nav>
         <div className="settings-panel">
-      <div className="page-grid-2 settings-grid">
-        <section className="nr-card settings-refresh" aria-labelledby="settings-refresh-title">
-          <div className="nr-card-head">
-            <div>
-              <h2 id="settings-refresh-title">Refresh cadence</h2>
-              <p>How often this tab requests health, diagnostics, farm status and the latest preview.</p>
-            </div>
-            <span className="nr-card-count">{cadence === "manual" ? "Manual" : `${cadence}s`}</span>
-          </div>
-          <div className="settings-card-body">
-            <fieldset className="settings-cadence">
-              <legend className="page-kicker">Automatic refresh interval</legend>
-              <div className="page-segment settings-cadence-segment">
-                {CADENCE_OPTIONS.map((option) => (
-                  <label key={option} className={cadence === option ? "is-active" : undefined}>
-                    <input
-                      type="radio"
-                      name="refresh-cadence"
-                      value={option}
-                      checked={cadence === option}
-                      onChange={() => onCadenceChange(option)}
-                    />
-                    <span>{option === "manual" ? "Manual" : `${option}s`}</span>
-                  </label>
-                ))}
+          <div className="page-grid-2 settings-grid">
+            <section className="nr-card settings-refresh" aria-labelledby="settings-refresh-title">
+              <div className="nr-card-head">
+                <div>
+                  <h2 id="settings-refresh-title">Refresh cadence</h2>
+                  <p>How often this tab requests health, diagnostics, farm status and the latest preview.</p>
+                </div>
+                <span className="nr-card-count">{cadence === "manual" ? "Manual" : `${cadence}s`}</span>
               </div>
-            </fieldset>
-            <p className="page-muted settings-cadence-hint">
-              Manual mode still loads once when the dashboard opens.
-            </p>
-            <p className={`page-note settings-note${storageError ? " is-warn" : ""}`} role="status">
-              {storageError
-                ? "Browser storage unavailable; this choice lasts until the page closes."
-                : "Saved in this browser only. No server configuration is changed."}
-            </p>
-            <div className="page-form-actions">
-              <button type="button" className="page-btn is-sm" onClick={onRefresh} disabled={refreshing}>
-                <RefreshCw size={13} className={refreshing ? "spin" : ""} aria-hidden="true" />{" "}
-                {refreshing ? "Refreshing…" : "Refresh now"}
-              </button>
-            </div>
-          </div>
-        </section>
+              <div className="settings-card-body">
+                <fieldset className="settings-cadence">
+                  <legend className="page-kicker">Automatic refresh interval</legend>
+                  <div className="page-segment settings-cadence-segment">
+                    {CADENCE_OPTIONS.map((option) => (
+                      <label key={option} className={cadence === option ? "is-active" : undefined}>
+                        <input
+                          type="radio"
+                          name="refresh-cadence"
+                          value={option}
+                          checked={cadence === option}
+                          onChange={() => onCadenceChange(option)}
+                        />
+                        <span>{option === "manual" ? "Manual" : `${option}s`}</span>
+                      </label>
+                    ))}
+                  </div>
+                </fieldset>
+                <p className="page-muted settings-cadence-hint">
+                  Manual mode still loads once when the dashboard opens.
+                </p>
+                <p className={`page-note settings-note${storageError ? " is-warn" : ""}`} role="status">
+                  {storageError
+                    ? "Browser storage unavailable; this choice lasts until the page closes."
+                    : "Saved in this browser only. No server configuration is changed."}
+                </p>
+                <div className="page-form-actions">
+                  <button type="button" className="page-btn is-sm" onClick={onRefresh} disabled={refreshing}>
+                    <RefreshCw size={13} className={refreshing ? "spin" : ""} aria-hidden="true" />{" "}
+                    {refreshing ? "Refreshing…" : "Refresh now"}
+                  </button>
+                </div>
+              </div>
+            </section>
 
-        <section className="nr-card settings-notifications" aria-labelledby="settings-notifications-title">
-          <div className="nr-card-head">
-            <div>
-              <h2 id="settings-notifications-title">Notifications</h2>
-              <p>Pop-up alerts in this dashboard when something changes. Saved in this browser only.</p>
-            </div>
-            <span className="nr-card-count">{notificationPrefs.enabled ? "On" : "Off"}</span>
-          </div>
-          <div className="settings-card-body">
-            <label className="settings-toggle">
-              <input
-                type="checkbox"
-                checked={notificationPrefs.enabled}
-                onChange={(event) => onNotificationPrefsChange({ ...notificationPrefs, enabled: event.target.checked })}
-              />
-              <span>Show notifications</span>
-            </label>
-            <fieldset className="settings-toggle-group" disabled={!notificationPrefs.enabled}>
-              <legend className="page-kicker">Notify me when</legend>
-              {NOTIFICATION_TOGGLES.map((toggle) => (
-                <label key={toggle.key} className="settings-toggle">
+            <section className="nr-card settings-notifications" aria-labelledby="settings-notifications-title">
+              <div className="nr-card-head">
+                <div>
+                  <h2 id="settings-notifications-title">Notifications</h2>
+                  <p>Pop-up alerts in this dashboard when something changes. Saved in this browser only.</p>
+                </div>
+                <span className="nr-card-count">{notificationPrefs.enabled ? "On" : "Off"}</span>
+              </div>
+              <div className="settings-card-body">
+                <label className="settings-toggle">
                   <input
                     type="checkbox"
-                    checked={notificationPrefs[toggle.key]}
+                    checked={notificationPrefs.enabled}
                     onChange={(event) =>
-                      onNotificationPrefsChange({ ...notificationPrefs, [toggle.key]: event.target.checked })
+                      onNotificationPrefsChange({ ...notificationPrefs, enabled: event.target.checked })
                     }
                   />
-                  <span>
-                    {toggle.label}
-                    <small className="page-muted"> {toggle.hint}</small>
-                  </span>
+                  <span>Show notifications</span>
                 </label>
-              ))}
-            </fieldset>
-            <p className={`page-note settings-note${notificationsSaveError ? " is-warn" : ""}`} role="status">
-              {notificationsSaveError
-                ? "Browser storage unavailable; these choices last until the page closes."
-                : "Changes apply immediately."}
-            </p>
-          </div>
-        </section>
-
-        <section id="settings-event-log" className="nr-card settings-event-log" aria-labelledby="settings-event-log-title">
-          <div className="nr-card-head">
-            <div>
-              <h2 id="settings-event-log-title">Event log</h2>
-              <p>Every notification raised in this browser, newest first.</p>
-            </div>
-            <span className="nr-card-count">{eventLog.length}</span>
-          </div>
-          <div className="settings-card-body">
-            {eventLog.length === 0 ? (
-              <p className="page-muted">No events yet. They appear here as renders, workers and the server change.</p>
-            ) : (
-              <ol className="settings-event-list">
-                {eventLog.map((entry, index) => (
-                  <li key={`${entry.id}-${entry.at}-${index}`} className={`settings-event is-${entry.tone}`}>
-                    <time dateTime={entry.at}>{new Date(entry.at).toLocaleString()}</time>
-                    <strong>{entry.title}</strong>
-                    {entry.detail && <span className="page-muted">{entry.detail}</span>}
-                  </li>
-                ))}
-              </ol>
-            )}
-            <div className="page-form-actions">
-              <button type="button" className="page-btn is-sm" onClick={onClearEvents} disabled={eventLog.length === 0}>
-                Clear log
-              </button>
-            </div>
-          </div>
-        </section>
-
-        <section className="nr-card settings-connection" aria-labelledby="settings-connection-title">
-          <div className="nr-card-head">
-            <div>
-              <h2 id="settings-connection-title">Coordinator connection</h2>
-              <p>Farm access for this browser tab only.</p>
-            </div>
-            <span className="nr-card-count">{authReady ? "Key loaded" : "No key"}</span>
-          </div>
-          <div className="settings-card-body">
-            <div className="settings-connection-state" role="status">
-              <span className={`page-chip ${connectionChip}`}>
-                <i aria-hidden="true" />
-                {connectionLabel}
-              </span>
-            </div>
-            <p className="page-muted">
-              {health?.ok
-                ? authReady
-                  ? "Key present in this tab; authenticated farm access is attempted on refresh."
-                  : "Health is available; connect to access authenticated farm data."
-                : (health?.error ?? "Waiting for health check.")}
-            </p>
-            {authError && (
-              <p className="page-note is-bad settings-error" role="alert">
-                {authError}
-              </p>
-            )}
-            <div className="page-form-actions settings-actions">
-              {authReady ? (
-                <button type="button" className="page-btn" onClick={onDisconnect}>
-                  Disconnect this tab
-                </button>
-              ) : (
-                <button type="button" className="page-btn is-primary" onClick={onConnect}>
-                  Connect coordinator <ChevronRight size={14} aria-hidden="true" />
-                </button>
-              )}
-            </div>
-            <p className="page-muted settings-note">
-              The key is never displayed here. Disconnect this tab forgets the API key stored in this tab only; it
-              does not change server credentials or the browser session.
-            </p>
-          </div>
-        </section>
-
-        {isMaster && (
-          <section className="nr-card settings-render-row" aria-labelledby="settings-farm-title">
-            <div className="nr-card-head">
-              <div>
-                <h2 id="settings-farm-title">Local rendering</h2>
-                <p>Turn off to keep this master dispatch-only.</p>
-              </div>
-              <span className="nr-card-count">
-                {localRenderingBusy ? "Saving" : localRenderingEnabled ? "On" : "Off"}
-              </span>
-            </div>
-            <div className="settings-card-body">
-              <label className="page-switch settings-farm-toggle">
-                <input
-                  type="checkbox"
-                  checked={localRenderingEnabled}
-                  disabled={!authReady || !localRenderingReady || localRenderingBusy}
-                  onChange={(event) => void updateLocalRendering(event.target.checked)}
-                />
-                <span className="page-switch-track" aria-hidden="true" />
-                <span>{localRenderingBusy ? "Saving…" : "Allow local renders"}</span>
-              </label>
-              <p className="page-muted">
-                When disabled, this coordinator dispatches jobs to workers instead of rendering them itself.
-              </p>
-              {localRenderingError && (
-                <p className="page-note is-bad settings-error" role="alert">
-                  {localRenderingError}
+                <fieldset className="settings-toggle-group" disabled={!notificationPrefs.enabled}>
+                  <legend className="page-kicker">Notify me when</legend>
+                  {NOTIFICATION_TOGGLES.map((toggle) => (
+                    <label key={toggle.key} className="settings-toggle">
+                      <input
+                        type="checkbox"
+                        checked={notificationPrefs[toggle.key]}
+                        onChange={(event) =>
+                          onNotificationPrefsChange({ ...notificationPrefs, [toggle.key]: event.target.checked })
+                        }
+                      />
+                      <span>
+                        {toggle.label}
+                        <small className="page-muted"> {toggle.hint}</small>
+                      </span>
+                    </label>
+                  ))}
+                </fieldset>
+                <p className={`page-note settings-note${notificationsSaveError ? " is-warn" : ""}`} role="status">
+                  {notificationsSaveError
+                    ? "Browser storage unavailable; these choices last until the page closes."
+                    : "Changes apply immediately."}
                 </p>
-              )}
-            </div>
-          </section>
-        )}
+              </div>
+            </section>
 
-        <section className="nr-card settings-details" aria-labelledby="settings-details-title">
-          <div className="nr-card-head">
-            <div>
-              <h2 id="settings-details-title">Runtime &amp; workspace</h2>
-              <p>Read-only values reported by the coordinator.</p>
-            </div>
-            <HardDrive size={15} aria-hidden="true" className="settings-card-icon" />
-          </div>
-          <div className="settings-card-body">
-            <dl className="page-table settings-facts">
-              <div className="page-table-row">
-                <dt className="page-table-cell-muted">Server version</dt>
-                <dd className="settings-fact-value">{server?.version ?? health?.version ?? "Unavailable"}</dd>
+            <section
+              id="settings-event-log"
+              className="nr-card settings-event-log"
+              aria-labelledby="settings-event-log-title"
+            >
+              <div className="nr-card-head">
+                <div>
+                  <h2 id="settings-event-log-title">Event log</h2>
+                  <p>Every notification raised in this browser, newest first.</p>
+                </div>
+                <span className="nr-card-count">{eventLog.length}</span>
               </div>
-              <div className="page-table-row">
-                <dt className="page-table-cell-muted">Server role</dt>
-                <dd className="settings-fact-value">{server?.role ?? "Unavailable"}</dd>
-              </div>
-              <div className="page-table-row">
-                <dt className="page-table-cell-muted">Workspace filesystem</dt>
-                <dd className="settings-fact-value">{diskUsage}</dd>
-              </div>
-            </dl>
-            <p className="page-note settings-disk-note">
-              {diskAvailable
-                ? "Disk values refer to the configured workspace filesystem, not the container overlay."
-                : "Workspace filesystem data was not reported. No container overlay estimate is shown."}
-            </p>
-          </div>
-        </section>
-
-        <section className="nr-card settings-session" aria-labelledby="settings-session-title">
-          <div className="nr-card-head">
-            <div>
-              <h2 id="settings-session-title">Dashboard session</h2>
-              <p>Cookie session used by the dashboard UI.</p>
-            </div>
-            <LockKeyhole size={15} aria-hidden="true" className="settings-card-icon" />
-          </div>
-          <div className="settings-card-body">
-            <div className="settings-session-state" role="status">
-              <span className={`page-chip ${sessionChip}`}>
-                <i aria-hidden="true" />
-                {sessionLabel}
-              </span>
-              <span className="page-muted">{sessionCopy}</span>
-            </div>
-            {isMaster && authReady && (
-              <div className="settings-session-ttl">
-                <label className="page-kicker settings-ttl-label" htmlFor="settings-ttl-input">
-                  Session duration (minutes)
-                </label>
-                <div className="settings-ttl-row">
-                  <input
-                    id="settings-ttl-input"
-                    type="number"
-                    className="page-input settings-ttl-input"
-                    min={5}
-                    max={10080}
-                    value={sessionTtlInput}
-                    onChange={(e) => { setSessionTtlInput(e.target.value); setSessionTtlSaved(false); }}
-                    onKeyDown={(e) => { if (e.key === "Enter") void updateSessionTtl(); }}
-                    disabled={sessionTtlBusy}
-                    aria-describedby="settings-ttl-hint"
-                  />
+              <div className="settings-card-body">
+                {eventLog.length === 0 ? (
+                  <p className="page-muted">
+                    No events yet. They appear here as renders, workers and the server change.
+                  </p>
+                ) : (
+                  <ol className="settings-event-list">
+                    {eventLog.map((entry, index) => (
+                      <li key={`${entry.id}-${entry.at}-${index}`} className={`settings-event is-${entry.tone}`}>
+                        <time dateTime={entry.at}>{new Date(entry.at).toLocaleString()}</time>
+                        <strong>{entry.title}</strong>
+                        {entry.detail && <span className="page-muted">{entry.detail}</span>}
+                      </li>
+                    ))}
+                  </ol>
+                )}
+                <div className="page-form-actions">
                   <button
                     type="button"
                     className="page-btn is-sm"
-                    onClick={() => void updateSessionTtl()}
-                    disabled={sessionTtlBusy || sessionTtlInput === String(Math.round(sessionTtlSeconds / 60))}
+                    onClick={onClearEvents}
+                    disabled={eventLog.length === 0}
                   >
-                    {sessionTtlBusy ? "Saving…" : sessionTtlSaved ? "Saved" : "Apply"}
+                    Clear log
                   </button>
                 </div>
-                <p id="settings-ttl-hint" className="page-muted">
-                  Current: {Math.round(sessionTtlSeconds / 60)} min. Range 5–10080 (7 days). Takes effect on the next login.
+              </div>
+            </section>
+
+            <section className="nr-card settings-connection" aria-labelledby="settings-connection-title">
+              <div className="nr-card-head">
+                <div>
+                  <h2 id="settings-connection-title">Coordinator connection</h2>
+                  <p>Farm access for this browser tab only.</p>
+                </div>
+                <span className="nr-card-count">{authReady ? "Key loaded" : "No key"}</span>
+              </div>
+              <div className="settings-card-body">
+                <div className="settings-connection-state" role="status">
+                  <span className={`page-chip ${connectionChip}`}>
+                    <i aria-hidden="true" />
+                    {connectionLabel}
+                  </span>
+                </div>
+                <p className="page-muted">
+                  {health?.ok
+                    ? authReady
+                      ? "Key present in this tab; authenticated farm access is attempted on refresh."
+                      : "Health is available; connect to access authenticated farm data."
+                    : (health?.error ?? "Waiting for health check.")}
                 </p>
-                {sessionTtlError && (
+                {authError && (
                   <p className="page-note is-bad settings-error" role="alert">
-                    {sessionTtlError}
+                    {authError}
                   </p>
                 )}
+                <div className="page-form-actions settings-actions">
+                  {authReady ? (
+                    <button type="button" className="page-btn" onClick={onDisconnect}>
+                      Disconnect this tab
+                    </button>
+                  ) : (
+                    <button type="button" className="page-btn is-primary" onClick={onConnect}>
+                      Connect coordinator <ChevronRight size={14} aria-hidden="true" />
+                    </button>
+                  )}
+                </div>
+                <p className="page-muted settings-note">
+                  The key is never displayed here. Disconnect this tab forgets the API key stored in this tab only; it
+                  does not change server credentials or the browser session.
+                </p>
               </div>
+            </section>
+
+            {isMaster && (
+              <section className="nr-card settings-render-row" aria-labelledby="settings-farm-title">
+                <div className="nr-card-head">
+                  <div>
+                    <h2 id="settings-farm-title">Local rendering</h2>
+                    <p>Turn off to keep this master dispatch-only.</p>
+                  </div>
+                  <span className="nr-card-count">
+                    {localRenderingBusy ? "Saving" : localRenderingEnabled ? "On" : "Off"}
+                  </span>
+                </div>
+                <div className="settings-card-body">
+                  <label className="page-switch settings-farm-toggle">
+                    <input
+                      type="checkbox"
+                      checked={localRenderingEnabled}
+                      disabled={!authReady || !localRenderingReady || localRenderingBusy}
+                      onChange={(event) => void updateLocalRendering(event.target.checked)}
+                    />
+                    <span className="page-switch-track" aria-hidden="true" />
+                    <span>{localRenderingBusy ? "Saving…" : "Allow local renders"}</span>
+                  </label>
+                  <p className="page-muted">
+                    When disabled, this coordinator dispatches jobs to workers instead of rendering them itself.
+                  </p>
+                  {localRenderingError && (
+                    <p className="page-note is-bad settings-error" role="alert">
+                      {localRenderingError}
+                    </p>
+                  )}
+                </div>
+              </section>
             )}
-            {signOutError && (
-              <p className="page-note is-bad settings-error" role="alert">
-                {signOutError}
-              </p>
-            )}
-            {dashboardSession === "active" && (
-              <div className="page-form-actions">
-                <button type="button" className="page-btn is-danger" onClick={onSignOut} disabled={signingOut}>
-                  <LogOut size={13} aria-hidden="true" /> {signingOut ? "Signing out…" : "Sign out"}
+
+            <section className="nr-card settings-details" aria-labelledby="settings-details-title">
+              <div className="nr-card-head">
+                <div>
+                  <h2 id="settings-details-title">Runtime &amp; workspace</h2>
+                  <p>Read-only values reported by the coordinator.</p>
+                </div>
+                <HardDrive size={15} aria-hidden="true" className="settings-card-icon" />
+              </div>
+              <div className="settings-card-body">
+                <dl className="page-table settings-facts">
+                  <div className="page-table-row">
+                    <dt className="page-table-cell-muted">Server version</dt>
+                    <dd className="settings-fact-value">{server?.version ?? health?.version ?? "Unavailable"}</dd>
+                  </div>
+                  <div className="page-table-row">
+                    <dt className="page-table-cell-muted">Server role</dt>
+                    <dd className="settings-fact-value">{server?.role ?? "Unavailable"}</dd>
+                  </div>
+                  <div className="page-table-row">
+                    <dt className="page-table-cell-muted">Workspace filesystem</dt>
+                    <dd className="settings-fact-value">{diskUsage}</dd>
+                  </div>
+                </dl>
+                <p className="page-note settings-disk-note">
+                  {diskAvailable
+                    ? "Disk values refer to the configured workspace filesystem, not the container overlay."
+                    : "Workspace filesystem data was not reported. No container overlay estimate is shown."}
+                </p>
+              </div>
+            </section>
+
+            <section className="nr-card settings-session" aria-labelledby="settings-session-title">
+              <div className="nr-card-head">
+                <div>
+                  <h2 id="settings-session-title">Dashboard session</h2>
+                  <p>Cookie session used by the dashboard UI.</p>
+                </div>
+                <LockKeyhole size={15} aria-hidden="true" className="settings-card-icon" />
+              </div>
+              <div className="settings-card-body">
+                <div className="settings-session-state" role="status">
+                  <span className={`page-chip ${sessionChip}`}>
+                    <i aria-hidden="true" />
+                    {sessionLabel}
+                  </span>
+                  <span className="page-muted">{sessionCopy}</span>
+                </div>
+                {isMaster && authReady && (
+                  <div className="settings-session-ttl">
+                    <label className="page-kicker settings-ttl-label" htmlFor="settings-ttl-input">
+                      Session duration (minutes)
+                    </label>
+                    <div className="settings-ttl-row">
+                      <input
+                        id="settings-ttl-input"
+                        type="number"
+                        className="page-input settings-ttl-input"
+                        min={5}
+                        max={10080}
+                        value={sessionTtlInput}
+                        onChange={(e) => {
+                          setSessionTtlInput(e.target.value);
+                          setSessionTtlSaved(false);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") void updateSessionTtl();
+                        }}
+                        disabled={sessionTtlBusy}
+                        aria-describedby="settings-ttl-hint"
+                      />
+                      <button
+                        type="button"
+                        className="page-btn is-sm"
+                        onClick={() => void updateSessionTtl()}
+                        disabled={sessionTtlBusy || sessionTtlInput === String(Math.round(sessionTtlSeconds / 60))}
+                      >
+                        {sessionTtlBusy ? "Saving…" : sessionTtlSaved ? "Saved" : "Apply"}
+                      </button>
+                    </div>
+                    <p id="settings-ttl-hint" className="page-muted">
+                      Current: {Math.round(sessionTtlSeconds / 60)} min. Range 5–10080 (7 days). Takes effect on the
+                      next login.
+                    </p>
+                    {sessionTtlError && (
+                      <p className="page-note is-bad settings-error" role="alert">
+                        {sessionTtlError}
+                      </p>
+                    )}
+                  </div>
+                )}
+                {signOutError && (
+                  <p className="page-note is-bad settings-error" role="alert">
+                    {signOutError}
+                  </p>
+                )}
+                {dashboardSession === "active" && (
+                  <div className="page-form-actions">
+                    <button type="button" className="page-btn is-danger" onClick={onSignOut} disabled={signingOut}>
+                      <LogOut size={13} aria-hidden="true" /> {signingOut ? "Signing out…" : "Sign out"}
+                    </button>
+                  </div>
+                )}
+                <p className="page-muted settings-note">
+                  Sign out is offered only when the coordinator reports an active dashboard session; it ends that cookie
+                  session server-side and returns to the login page.
+                </p>
+              </div>
+            </section>
+
+            <section className="nr-card settings-shortcuts" aria-labelledby="settings-shortcuts-title">
+              <div className="nr-card-head">
+                <div>
+                  <h2 id="settings-shortcuts-title">Go to</h2>
+                  <p>Jump to the operational screens.</p>
+                </div>
+              </div>
+              <div className="page-list settings-shortcut-list">
+                <button type="button" className="page-list-row settings-shortcut" onClick={() => onNavigate("Workers")}>
+                  <Server size={15} aria-hidden="true" />
+                  <span>Workers</span>
+                  <ArrowUpRight size={14} aria-hidden="true" className="settings-shortcut-arrow" />
+                </button>
+                <button
+                  type="button"
+                  className="page-list-row settings-shortcut"
+                  onClick={() => onNavigate("Monitoring")}
+                >
+                  <Activity size={15} aria-hidden="true" />
+                  <span>Monitoring</span>
+                  <ArrowUpRight size={14} aria-hidden="true" className="settings-shortcut-arrow" />
                 </button>
               </div>
-            )}
-            <p className="page-muted settings-note">
-              Sign out is offered only when the coordinator reports an active dashboard session; it ends that cookie
-              session server-side and returns to the login page.
-            </p>
+            </section>
           </div>
-        </section>
-
-        <section className="nr-card settings-shortcuts" aria-labelledby="settings-shortcuts-title">
-          <div className="nr-card-head">
-            <div>
-              <h2 id="settings-shortcuts-title">Go to</h2>
-              <p>Jump to the operational screens.</p>
-            </div>
-          </div>
-          <div className="page-list settings-shortcut-list">
-            <button type="button" className="page-list-row settings-shortcut" onClick={() => onNavigate("Workers")}>
-              <Server size={15} aria-hidden="true" />
-              <span>Workers</span>
-              <ArrowUpRight size={14} aria-hidden="true" className="settings-shortcut-arrow" />
-            </button>
-            <button type="button" className="page-list-row settings-shortcut" onClick={() => onNavigate("Monitoring")}>
-              <Activity size={15} aria-hidden="true" />
-              <span>Monitoring</span>
-              <ArrowUpRight size={14} aria-hidden="true" className="settings-shortcut-arrow" />
-            </button>
-          </div>
-        </section>
-        </div>
         </div>
       </div>
     </section>
