@@ -1,11 +1,7 @@
 import { ArrowRight, Box, Eye, EyeOff, ShieldCheck } from "lucide-react";
 import { type FormEvent, useEffect, useRef, useState } from "react";
 import StudioThemeToggle from "./studio-theme-toggle";
-import "./studio-login.css";
-import "./studio-theme.css";
-import "./studio-typography.css";
-import "./studio-pages.css";
-import "./studio-login-redesign.css";
+/* farm.css loaded by studio-dashboard.tsx */
 
 function responseError(body: unknown): string | null {
   if (typeof body !== "object" || body === null) return null;

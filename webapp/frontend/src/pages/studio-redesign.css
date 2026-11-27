@@ -1,17 +1,1 @@
-@import "./studio-theme.css";
-@import "./studio-typography.css";
-@import "./studio-shell-redesign.css";
-@import "./studio-overview-redesign.css";
-@import "./studio-workers-redesign.css";
-@import "./studio-gallery-redesign.css";
-@import "./studio-monitoring-redesign.css";
-@import "./studio-settings-redesign.css";
-@import "./studio-gpu-card.css";
-@import "./studio-mobile.css";
-
-/* Keep the shared card shell outlined across every Studio screen. */
-.studio-shell .panel,
-.studio-shell .gpu-card {
-  border: 1px solid var(--studio-border, var(--border));
-  border-radius: var(--radius);
-}
+/* replaced by farm.css */

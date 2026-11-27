@@ -1,6 +1,6 @@
 import { type FormEvent, useEffect, useState } from "react";
 import { dashboardAuthHeaders } from "../api/dashboardAuth";
-import "./studio-jobs.css";
+/* farm.css loaded by studio-dashboard.tsx */
 
 type Frame = {
   frame: number;

@@ -26,8 +26,7 @@ import {
 } from "react";
 import { dashboardAuthHeaders, getDashboardKey } from "../api/dashboardAuth";
 import StudioWorkers from "./studio-workers";
-import "./studio-gallery-browser.css";
-import "./studio-gallery-bulk.css";
+/* farm.css loaded by studio-dashboard.tsx */
 
 type WorkspaceEntry = {
   name: string;
