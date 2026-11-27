@@ -181,10 +181,10 @@ const NAV = [
 ];
 
 const NAV_SECTIONS = [
-  { label: "Overview", items: NAV.filter((item) => item.label === "Overview") },
-  { label: "Render Farm", items: NAV.filter((item) => item.label === "Jobs" || item.label === "Workers") },
-  { label: "Library", items: NAV.filter((item) => item.label === "Gallery") },
-  { label: "Operations", items: NAV.filter((item) => item.label === "Monitoring" || item.label === "Settings") },
+  { label: "", items: NAV.filter((item) => item.label === "Overview") },
+  { label: "Farm", items: NAV.filter((item) => item.label === "Workers" || item.label === "Jobs") },
+  { label: "Output", items: NAV.filter((item) => item.label === "Gallery" || item.label === "Monitoring") },
+  { label: "System", items: NAV.filter((item) => item.label === "Settings") },
 ];
 
 /** Series colours for the allocation bars, donut legend and load curves. */
@@ -2020,13 +2020,13 @@ export default function StudioDashboard() {
         className={`studio-sidebar${mobileMenuOpen ? " mobile-menu-open" : ""}`}
         aria-label="Studio navigation"
       >
-        <a className="studio-brand" href="/" aria-label="Blender MCP overview">
+        <a className="studio-brand" href="/" aria-label="Blender Farm overview">
           <span className="brand-mark">
-            <Box size={17} strokeWidth={1.7} />
+            <Box size={16} strokeWidth={1.7} />
           </span>
           <span className="studio-brand-copy">
-            <strong>BLENDER MCP</strong>
-            <small>STUDIO</small>
+            <strong>BLENDER FARM</strong>
+            <small>RENDER PIPELINE</small>
           </span>
         </a>
         <nav className="studio-rail-nav" aria-label="Main navigation">
@@ -2053,10 +2053,9 @@ export default function StudioDashboard() {
         <button
           type="button"
           className="studio-rail-add"
-          aria-label="Add worker"
+          aria-label="New render job"
           onClick={() => {
-            selectScreen("Workers");
-            setWorkerView("onboarding");
+            selectScreen("Jobs");
           }}
         >
           <Plus size={14} strokeWidth={2} />
@@ -2084,14 +2083,11 @@ export default function StudioDashboard() {
         <header className="studio-head">
           <div className="studio-head-copy">
             {screen === "Overview" ? (
-              <>
-                <h1>
-                  Welcome Back <span aria-hidden="true">👋</span>
-                </h1>
-                <p>Your render farm is operating at peak efficiency.</p>
-              </>
+              <span className="studio-head-screen">
+                Overview<span className="head-period" aria-hidden="true">.</span>
+              </span>
             ) : (
-              <span className="studio-head-screen">{screen}</span>
+              <span className="studio-head-screen">{screen}<span className="head-period" aria-hidden="true">.</span></span>
             )}
           </div>
           <div className="studio-head-actions">
@@ -2169,6 +2165,55 @@ export default function StudioDashboard() {
         <div className="overview-content">
           {screen === "Overview" ? (
             <>
+              {/* Top-level stat cards matching prototype layout */}
+              <div className="v2-stat-row">
+                <div className={`v2-stat${activeJobs.length > 0 ? " is-active" : ""}`}>
+                  <div className="v2-stat-label">Active Jobs</div>
+                  <div className="v2-stat-value">
+                    {backendReady ? activeJobs.length : "—"}
+                    {activeJobs.length > 0 && <small>rendering</small>}
+                  </div>
+                  <div className="v2-stat-foot">
+                    {backendReady ? `${queuedJobs.length} queued · ${failedJobs.length} failed` : "not connected"}
+                  </div>
+                </div>
+                <div className="v2-stat">
+                  <div className="v2-stat-label">Workers Online</div>
+                  <div className="v2-stat-value">
+                    {backendReady ? onlineWorkers : "—"}
+                    {backendReady && workers.length > 0 && <small>/ {workers.length}</small>}
+                  </div>
+                  <div className="v2-stat-foot">
+                    {backendReady
+                      ? onlineWorkers === workers.length && workers.length > 0
+                        ? "All responding"
+                        : `${workers.length - onlineWorkers} offline`
+                      : "not connected"}
+                  </div>
+                </div>
+                <div className="v2-stat">
+                  <div className="v2-stat-label">VRAM Used</div>
+                  <div className="v2-stat-value">
+                    {gpus.length > 0 ? formatMib(vramUsed) : "—"}
+                    {gpus.length > 0 && <small>GB</small>}
+                  </div>
+                  <div className="v2-stat-foot">
+                    {gpus.length > 0
+                      ? `${vramPct}% of ${formatMib(vramTotal)} GB farm total`
+                      : "no devices"}
+                  </div>
+                </div>
+                <div className="v2-stat">
+                  <div className="v2-stat-label">GPU Devices</div>
+                  <div className="v2-stat-value">
+                    {gpus.length > 0 ? gpus.length : "—"}
+                    {gpus.length > 0 && <small>{gpus.length === 1 ? "device" : "devices"}</small>}
+                  </div>
+                  <div className="v2-stat-foot">
+                    {gpus.length > 0 ? `avg ${avgUtil}% utilisation` : "not connected"}
+                  </div>
+                </div>
+              </div>
               <div className="nerve-cards-row">
                 <section className="nr-card" id="studio-nodes-card" aria-label="Infrastructure nodes">
                   <header className="nr-card-head">
