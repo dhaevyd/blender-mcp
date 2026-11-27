@@ -125,6 +125,30 @@ function entryTimestamp(entry: WorkspaceEntry, sortBy: SortKey): string {
 const BLEND_CUBE_SVG =
   "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='1.5'%3E%3Cpath d='M12 2L2 7l10 5 10-5-10-5z'/%3E%3Cpath d='M2 17l10 5 10-5'/%3E%3Cpath d='M2 12l10 5 10-5'/%3E%3C/svg%3E";
 
+/** Thumbnail fetched with the dashboard credentials (a bare <img src> would not send the Bearer key). */
+function AuthThumb({ path }: { path: string }) {
+  const [src, setSrc] = useState("");
+  useEffect(() => {
+    const controller = new AbortController();
+    let objectUrl = "";
+    void (async () => {
+      try {
+        const response = await fetch(fileUrl(path, true), { headers: dashboardAuthHeaders(), signal: controller.signal });
+        if (!response.ok) return;
+        objectUrl = URL.createObjectURL(await response.blob());
+        if (!controller.signal.aborted) setSrc(objectUrl);
+      } catch {
+        // Falls back to the placeholder tile.
+      }
+    })();
+    return () => {
+      controller.abort();
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [path]);
+  return src ? <img src={src} alt="" draggable={false} /> : <FileImage size={26} aria-hidden="true" />;
+}
+
 function EntryIcon({ entry, size = 20 }: { entry: WorkspaceEntry; size?: number }) {
   if (entry.type === "folder") return <Folder size={size} aria-hidden="true" />;
   if (entry.preview === "image") return <FileImage size={size} aria-hidden="true" />;
@@ -1386,7 +1410,11 @@ export default function StudioScreens({
                       }}
                     >
                       <span className="gallery-browser-tile-icon">
-                        <EntryIcon entry={entry} size={22} />
+                        {entry.type === "file" && entry.preview === "image" ? (
+                          <AuthThumb path={entry.path} />
+                        ) : (
+                          <EntryIcon entry={entry} size={26} />
+                        )}
                       </span>
                       <span className="gallery-browser-tile-name">{entry.name}</span>
                       <span className="gallery-browser-tile-meta">

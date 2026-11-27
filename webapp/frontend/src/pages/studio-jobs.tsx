@@ -45,7 +45,7 @@ async function call<T>(path: string, signal?: AbortSignal, payload?: Record<stri
 function tone(status: string): string {
   if (status === "running") return "is-info";
   if (status === "paused") return "is-warn";
-  if (status === "completed") return "is-good";
+  if (status === "completed" || status === "done") return "is-good";
   if (status === "failed" || status === "cancelled") return "is-bad";
   return "";
 }

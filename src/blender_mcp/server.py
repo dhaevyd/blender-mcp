@@ -1321,7 +1321,8 @@ def _dashboard_index():
             "script-src 'self' 'unsafe-inline'; "
             "style-src 'self' 'unsafe-inline'; "
             "font-src 'self' data:; "
-            "img-src 'self' data:; "
+            "img-src 'self' data: blob:; "
+            "media-src 'self' blob:; "
             "connect-src 'self'"
         ),
         "X-Frame-Options": "DENY",

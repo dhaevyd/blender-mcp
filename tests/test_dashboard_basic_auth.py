@@ -138,7 +138,8 @@ def test_authenticated_html_is_private_no_store(client, monkeypatch):
     monkeypatch.setenv("MCP_PASSWORD", "password")
     for path in ("/", "/settings"):
         response = client.get(path, headers=_basic())
-        assert 'window.__BLENDER_MCP_API_KEY__="api-secret"' in response.text
+        assert "window.__BLENDER_MCP_API_KEY__" not in response.text
+        assert "api-secret" not in response.text
         assert response.headers["cache-control"] == "private, no-store"
 
 
@@ -153,13 +154,16 @@ def test_basic_does_not_authorize_api_or_mcp_and_public_contract_survives(client
         assert (
             client.get(path, headers={"authorization": "Bearer api-secret", "accept": "text/html"}).status_code == 200
         )
-    for path in ("/health", "/api/v1/diagnostics", "/viewer", "/api/v1/viewer/state"):
-        assert client.get(path).status_code == 200
+    assert client.get("/health").status_code == 200
+    # BLENDER-012: diagnostics and viewer routes are no longer public.
+    for path in ("/api/v1/diagnostics", "/api/v1/viewer/state", "/viewer"):
+        assert client.get(path).status_code == 401
 
 
 def test_key_bearing_html_no_store_even_without_basic_auth(client):
     response = client.get("/")
-    assert 'window.__BLENDER_MCP_API_KEY__="api-secret"' in response.text
+    assert "window.__BLENDER_MCP_API_KEY__" not in response.text
+    assert "api-secret" not in response.text
     assert response.headers["cache-control"] == "private, no-store"
 
 
@@ -167,8 +171,9 @@ def test_api_key_script_injection_is_escaped(client, monkeypatch):
     monkeypatch.setenv("BLENDER_MCP_API_KEY", "</script><script>alert(1)</script>")
     response = client.get("/")
     assert response.status_code == 200
-    assert "</script><script>alert(1)" not in response.text
-    assert "\\u003c/script\\u003e" in response.text
+    # BLENDER-001: the key is never injected into the page, escaped or not.
+    assert "alert(1)" not in response.text
+    assert "window.__BLENDER_MCP_API_KEY__" not in response.text
 
 
 def _enable(monkeypatch):
@@ -236,7 +241,8 @@ def test_login_session_logout_and_bearer_separation(client, monkeypatch):
     assert "api-secret" not in session.text
     assert client.get("/settings").status_code == 200
     assert client.get("/api/private").status_code == 401
-    assert 'window.__BLENDER_MCP_API_KEY__="api-secret"' in client.get("/").text
+    assert "window.__BLENDER_MCP_API_KEY__" not in client.get("/").text
+    assert "api-secret" not in client.get("/").text
     assert client.get("/mcp").status_code == 401
     assert client.get("/tool").status_code == 401
     logout = client.post("/api/v1/dashboard/logout", headers=origin)
@@ -385,7 +391,8 @@ def test_real_asgi_login_routes_and_authenticated_root(tmp_path, monkeypatch):
         )
         dashboard = actual.get("/")
         assert dashboard.status_code == 200
-        assert 'window.__BLENDER_MCP_API_KEY__="fixture-key"' in dashboard.text
+        assert "window.__BLENDER_MCP_API_KEY__" not in dashboard.text
+        assert "fixture-key" not in dashboard.text
         assert actual.get("/tool").status_code == 401
 
 
@@ -431,9 +438,10 @@ def test_cross_origin_with_session_cookie_cannot_read_key_bearing_html(real_app,
         assert login.status_code == 200
         response = actual.get("/", headers={"origin": EVIL_ORIGIN, "accept": "text/html"}, follow_redirects=False)
         assert response.status_code == 200
-        # Same-origin navigation still gets the key-bearing shell locally...
-        assert 'window.__BLENDER_MCP_API_KEY__="fixture-key"' in response.text
-        # ...but no CORS grant makes that body readable from another origin.
+        # The shell never embeds the API key (BLENDER-001)...
+        assert "window.__BLENDER_MCP_API_KEY__" not in response.text
+        assert "fixture-key" not in response.text
+        # ...and no CORS grant makes it readable from another origin either.
         assert "access-control-allow-origin" not in response.headers
         assert "access-control-allow-credentials" not in response.headers
         assert "access-control-expose-headers" not in response.headers
@@ -443,7 +451,8 @@ def test_legacy_root_key_injection_is_not_cross_origin_readable(real_app, monkey
     monkeypatch.delenv("MCP_DASH_AUTH", raising=False)
     with real_app as actual:
         response = actual.get("/", headers={"origin": EVIL_ORIGIN})
-        assert 'window.__BLENDER_MCP_API_KEY__="fixture-key"' in response.text
+        assert "window.__BLENDER_MCP_API_KEY__" not in response.text
+        assert "fixture-key" not in response.text
         assert "access-control-allow-origin" not in response.headers
         assert "access-control-allow-credentials" not in response.headers
 

@@ -157,7 +157,8 @@ def test_enroll_generates_vendor_specific_compose(monkeypatch, tmp_path, gpu_ven
     if gpu_vendor == "amd":
         assert "/dev/kfd:/dev/kfd" in service["devices"]
         assert "/opt/rocm:/opt/rocm:ro" in service["volumes"]
-        assert service["security_opt"] == ["seccomp=unconfined"]
+        # BLENDER-017: seccomp=unconfined was removed.
+        assert "security_opt" not in service
     else:
         assert service["devices"] == ["/dev/dri:/dev/dri"]
     assert service["volumes"][0] == "./gpu-node-workspace:/workspace"

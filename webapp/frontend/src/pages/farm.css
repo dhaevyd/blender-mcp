@@ -1830,3 +1830,66 @@ html[data-theme="light"] .studio-sidebar::before { opacity: .8; }
 .page-form-actions { padding: 16px 20px 20px; gap: 12px; flex-wrap: wrap; }
 .worker-connect-form button[type="submit"].page-btn.is-primary { background: var(--accent); border-color: transparent; color: #fff; box-shadow: 0 1px 8px var(--aglow); }
 .worker-connect-form button[type="submit"].page-btn.is-primary:hover:not(:disabled) { filter: brightness(1.1); background: var(--accent); color: #fff; }
+
+/* ── Gallery grid tiles ─────────────────────────────────────────────────── */
+.gallery-browser-grid { grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 12px; padding: 16px; }
+.gallery-browser-tilewrap { min-width: 0; }
+.gallery-browser-tile {
+  display: flex; flex-direction: column; width: 100%; text-align: left; padding: 0; color: var(--text);
+  border: 1px solid var(--border); border-radius: var(--rlg); background: var(--surface); overflow: hidden;
+}
+.gallery-browser-tile:hover { box-shadow: var(--shm); }
+.gallery-browser-tile-icon {
+  display: grid; place-items: center; width: 100%; aspect-ratio: 16 / 9; overflow: hidden;
+  background: var(--overlay); color: var(--faint);
+}
+.gallery-browser-tile-icon img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.gallery-browser-tile-name { display: block; padding: 10px 12px 4px; font: 600 12px/1.3 var(--font); }
+.gallery-browser-tile-meta { display: flex; justify-content: space-between; gap: 8px; padding: 0 12px 11px; font: 500 10.5px/1 var(--font); color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+.gallery-browser-tilewrap .gallery-browser-check { opacity: 0; top: 10px; left: 10px; }
+.gallery-browser-tilewrap:hover .gallery-browser-check, .gallery-browser-tilewrap.is-checked .gallery-browser-check { opacity: 1; }
+.gallery-browser-tilewrap .gallery-browser-delete {
+  position: absolute; top: 8px; right: 8px; width: 28px; height: 28px; display: grid; place-items: center; padding: 0;
+  border-radius: var(--rsm); background: rgba(8,10,15,.7); color: #fff; opacity: 0; backdrop-filter: blur(4px);
+}
+.gallery-browser-tilewrap:hover .gallery-browser-delete, .gallery-browser-tilewrap .gallery-browser-delete:focus-visible { opacity: 1; }
+.gallery-browser-tilewrap .gallery-browser-delete:hover { background: var(--coral); }
+
+/* ── Confirm dialogs ────────────────────────────────────────────────────── */
+.gallery-confirm-dialog:not(.gallery-trash-dialog):not(.gallery-move-dialog) { padding: 22px 24px 20px; gap: 10px; }
+.gallery-confirm-dialog h2 { font: 650 16px/1.25 var(--font); color: var(--text); margin: 2px 0 0; }
+.gallery-confirm-dialog > p, .gallery-confirm-dialog p[id] { font: 400 12.5px/1.55 var(--font); color: var(--muted); }
+.gallery-confirm-dialog .panel-kicker { font: 700 9.5px/1 var(--font); letter-spacing: .12em; text-transform: uppercase; color: var(--accent); }
+.gallery-confirm-dialog .studio-error { margin: 0; }
+.gallery-confirm-dialog > div:last-child:not(.gallery-trash-list) { display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; }
+.gallery-move-dialog { padding: 22px 24px 20px; gap: 10px; }
+.gallery-trash-heading p { font: 400 12px/1.5 var(--font); color: var(--muted); margin-top: 3px; }
+.gallery-trash-heading .panel-kicker { font: 700 9.5px/1 var(--font); letter-spacing: .12em; color: var(--accent); display: block; margin-bottom: 6px; }
+.page-empty, .gallery-trash-list > p { padding: 28px 20px; text-align: center; font: 400 12px/1.5 var(--font); color: var(--muted); }
+
+/* Frame table chips shouldn't stretch the column */
+.studio-frame-row .page-chip { justify-self: start; }
+
+/* ── Preview + confirm dialog chrome ────────────────────────────────────── */
+.gallery-browser-dialog > header {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
+  padding: 16px 20px; border-bottom: 1px solid var(--border);
+}
+.gallery-browser-dialog > header .panel-kicker { display: block; margin-bottom: 6px; font: 700 9.5px/1 var(--font); letter-spacing: .12em; text-transform: uppercase; color: var(--accent); }
+.gallery-browser-dialog > header h2 { font: 650 15px/1.25 var(--font); color: var(--text); margin: 0; overflow-wrap: anywhere; }
+.gallery-browser-dialog > header > button { flex: none; display: grid; place-items: center; width: 30px; height: 30px; background: transparent; border: 1px solid var(--border); border-radius: var(--rsm); color: var(--muted); cursor: pointer; }
+.gallery-browser-dialog > header > button:hover { background: var(--overlay); color: var(--text); }
+.gallery-browser-preview { display: flex; flex-direction: column; gap: 12px; align-items: center; padding: 18px 20px; min-height: 120px; }
+.gallery-browser-preview img, .gallery-browser-preview video { max-width: 100%; max-height: 56dvh; border-radius: var(--r); background: var(--overlay); }
+.gallery-browser-preview p { font: 400 12.5px/1.5 var(--font); color: var(--muted); text-align: center; }
+.gallery-browser-preview pre { width: 100%; max-height: 50dvh; overflow: auto; padding: 12px; border-radius: var(--r); background: var(--overlay); font: 400 11.5px/1.6 var(--mono); color: var(--text); }
+.gallery-browser-dialog > footer, .gallery-browser-dialog > div:last-child:not(.gallery-browser-preview) {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+  padding: 12px 20px; border-top: 1px solid var(--border); font: 500 11.5px/1.4 var(--font); color: var(--muted);
+}
+.gallery-browser-dialog a.page-btn, .gallery-browser-dialog .gallery-browser-download {
+  display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 14px; border-radius: var(--rsm);
+  background: var(--accent); color: #fff; font: 650 12px/1 var(--font); border: 0; cursor: pointer; text-decoration: none;
+}
+.gallery-confirm-dialog > footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px; }
+.gallery-search-dialog > footer { display: flex; gap: 16px; padding: 10px 20px; border-top: 1px solid var(--border); font: 500 10.5px/1 var(--font); color: var(--faint); }

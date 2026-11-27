@@ -78,6 +78,7 @@ class TestInstallFromUrl:
         with (
             patch("blender_mcp.handlers.addon_handler._blender_addons_dir", return_value=tmp_path),
             patch("httpx.AsyncClient", return_value=mock_client),
+            patch("blender_mcp.utils.safe_http._check_url"),  # no DNS in tests
         ):
             from blender_mcp.handlers.addon_handler import install_addon_from_url
 

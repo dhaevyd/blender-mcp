@@ -1,3 +1,4 @@
+from pathlib import Path
 """Routing regression coverage: root static files + SPA fallback vs API auth."""
 
 import pytest
@@ -35,7 +36,8 @@ def test_public_dashboard_request_allows_static_and_spa(tmp_path, monkeypatch):
     assert _ApiKeyMiddleware._public_dashboard_request(_req("/favicon.svg", accept="image/svg+xml")) is True
     assert _ApiKeyMiddleware._public_dashboard_request(_req("/scene", accept="text/html")) is True
     assert _ApiKeyMiddleware._public_dashboard_request(_req("/brand-new-route", accept="text/html")) is True
-    assert _ApiKeyMiddleware._public_dashboard_request(_req("/api/v1/diagnostics", accept="text/html")) is True
+    # BLENDER-012: diagnostics is no longer a public route.
+    assert _ApiKeyMiddleware._public_dashboard_request(_req("/api/v1/diagnostics", accept="text/html")) is False
     assert _ApiKeyMiddleware._public_dashboard_request(_req("/api/v1/logs", accept="text/html")) is False
     assert _ApiKeyMiddleware._public_dashboard_request(_req("/mcp", accept="text/html")) is False
     assert _ApiKeyMiddleware._public_dashboard_request(_req("/metrics", accept="text/html")) is False
@@ -71,16 +73,16 @@ def test_static_or_spa_serves_file_then_index(tmp_path, monkeypatch):
     assert private.status_code == 401
 
 
-def test_dashboard_index_injects_key_for_control_plane_roles(tmp_path, monkeypatch):
+def test_dashboard_index_never_injects_key_for_control_plane_roles(tmp_path, monkeypatch):
     (tmp_path / "index.html").write_text("<html><head></head><body>app</body></html>")
     monkeypatch.setattr(server_mod, "_dashboard_dist", tmp_path)
     monkeypatch.setenv("BLENDER_MCP_API_KEY", "sekret")
     monkeypatch.setenv("MCP_ROLE", "stand-alone")
     resp = server_mod._dashboard_index()
-    assert isinstance(resp, HTMLResponse)
-    body = bytes(resp.body).decode()
-    assert "window.__BLENDER_MCP_API_KEY__" in body
-    assert '"sekret"' in body
+    # BLENDER-001: the API key is never embedded in the served page.
+    body = bytes(resp.body).decode() if isinstance(resp, HTMLResponse) else Path(resp.path).read_text()
+    assert "window.__BLENDER_MCP_API_KEY__" not in body
+    assert "sekret" not in body
 
 
 def test_dashboard_index_skips_injection_for_worker_role(tmp_path, monkeypatch):
